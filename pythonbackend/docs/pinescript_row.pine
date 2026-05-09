@@ -1,0 +1,1208 @@
+//@version=6
+indicator("Yuvi-N-Short/long (MasterV6)-Final", overlay=true, max_labels_count=500)
+
+// Note from AI: The full original Pine Script text was truncated from my memory 
+// due to conversation length limits. 
+// Please paste your Pine Script here if you'd like to keep a copy of it in the project!
+//@version=6
+indicator("Yuvi-N-Short/long (MasterV6)-Final", overlay=true, max_labels_count=500)
+
+
+//════════════════════════════════════════════════════════════════════════════
+// 1. SETUP: INDEX & TIME (ALIGNED)
+//════════════════════════════════════════════════════════════════════════════
+grp_setup = "========== 1. Setup: Index & Time =========="
+indexName = input.string("NIFTY", "Index Selection", options=["NIFTY","BANKNIFTY","SENSEX"], inline="idx", group=grp_setup)
+
+// FIXED ALIGNMENT: Lengthened Label
+expDD     = input.string("06", "Ex.Date (DD", inline="exp", group=grp_setup)
+expMM     = input.string("01", "- MM", inline="exp", group=grp_setup) 
+expYY     = input.string("26", "- YY)", inline="exp", group=grp_setup)
+
+btDay     = input.int(30, "Start Date (DD", inline="bt1", minval=1, maxval=31, group=grp_setup)
+btMonth   = input.int(12, "- MM", inline="bt1", minval=1, maxval=12, group=grp_setup)
+btYear    = input.int(2025, "- YY)", inline="bt1", minval=2000, group=grp_setup)
+btEndDay   = input.int(31, "End Date (DD", inline="bt2", minval=1, maxval=31, group=grp_setup)
+btEndMonth = input.int(12, "- MM", inline="bt2", minval=1, maxval=12, group=grp_setup)
+btEndYear  = input.int(2099, "- YY)", inline="bt2", minval=2000, group=grp_setup)
+
+//════════════════════════════════════════════════════════════════════════════
+// 2. STRIKE SELECTION (MASTER)
+//════════════════════════════════════════════════════════════════════════════
+grp_strikes = "========== 2. Strike Selection (Master) =========="
+s1_en = input.bool(true, "En", inline="s1", group=grp_strikes), s1_show = input.bool(false, "Chart", inline="s1", group=grp_strikes), s1_ind = input.bool(true, "Ind", inline="s1", group=grp_strikes), s1 = input.int(26000, "Strike 1", inline="s1", group=grp_strikes)
+s2_en = input.bool(true, "En", inline="s2", group=grp_strikes), s2_show = input.bool(false, "Chart", inline="s2", group=grp_strikes), s2_ind = input.bool(true, "Ind", inline="s2", group=grp_strikes), s2 = input.int(26100, "Strike 2", inline="s2", group=grp_strikes)
+s3_en = input.bool(true, "En", inline="s3", group=grp_strikes), s3_show = input.bool(true, "Chart", inline="s3", group=grp_strikes), s3_ind = input.bool(true, "Ind", inline="s3", group=grp_strikes), s3 = input.int(26150, "Strike 3 (ATM)", inline="s3", group=grp_strikes)
+s4_en = input.bool(true, "En", inline="s4", group=grp_strikes), s4_show = input.bool(false, "Chart", inline="s4", group=grp_strikes), s4_ind = input.bool(true, "Ind", inline="s4", group=grp_strikes), s4 = input.int(26200, "Strike 4", inline="s4", group=grp_strikes)
+s5_en = input.bool(true, "En", inline="s5", group=grp_strikes), s5_show = input.bool(false, "Chart", inline="s5", group=grp_strikes), s5_ind = input.bool(true, "Ind", inline="s5", group=grp_strikes), s5 = input.int(26300, "Strike 5", inline="s5", group=grp_strikes)
+
+//════════════════════════════════════════════════════════════════════════════
+// 3. SIGNAL LOGIC
+//════════════════════════════════════════════════════════════════════════════
+grp_logic = "========== 3. Logic Settings =========="
+calcMode    = input.string("Auto", "Calc Mode", options=["Auto", "Strict", "Simple"], inline="mode", group=grp_logic)
+filterChop  = input.bool(true, "Filter Chop >", inline="mode", group=grp_logic)
+chopLimit   = input.float(61.8, "", minval=1, step=0.1, inline="mode", group=grp_logic)
+
+crossoverWindow = input.int(0, "Breakdown Window", minval=0, tooltip="0=Continuous", inline="mode", group=grp_logic)
+useOldLogic = input.bool(true, "Use Momentum", inline="toggles", group=grp_logic)
+useNewLogic = input.bool(false, "Use Trend", inline="toggles", group=grp_logic)
+useVwapReversal = input.bool(false, "Use VWAP Rev", inline="toggles", group=grp_logic)
+
+revMinSize = input.float(5.0, "Min Rev Size", minval=0.1, step=0.5, inline="toggles", group=grp_logic)
+vwapRestrict_en = input.bool(false, "Restrict VWAP Scope?", inline="vscope", group=grp_logic)
+vwapS1 = input.bool(false, "S1", inline="vscope", group=grp_logic), vwapS2 = input.bool(false, "S2", inline="vscope", group=grp_logic), vwapS3 = input.bool(false, "S3", inline="vscope", group=grp_logic), vwapS4 = input.bool(false, "S4", inline="vscope", group=grp_logic), vwapS5 = input.bool(false, "S5", inline="vscope", group=grp_logic)
+
+grp_short = "========== 4. Short Strategy =========="
+short_en        = input.bool(true, "Enable Short", inline="s_en", group=grp_short)
+lotsShort       = input.int(4, "Lots", minval=1, inline="s_en", group=grp_short)
+maxShortTrades  = input.int(2, "Max Short Trades (0=Unl.)", inline="s_lim", group=grp_short)
+
+shortRestrict_en= input.bool(false, "Restrict Scope?", inline="s_scope", group=grp_short)
+shortS1 = input.bool(true, "S1", inline="s_scope", group=grp_short), shortS2 = input.bool(true, "S2", inline="s_scope", group=grp_short), shortS3 = input.bool(true, "S3", inline="s_scope", group=grp_short), shortS4 = input.bool(true, "S4", inline="s_scope", group=grp_short), shortS5 = input.bool(true, "S5", inline="s_scope", group=grp_short)
+useHardExitShort  = input.bool(true, "Time Exit?", inline="hardS", group=grp_short)
+
+hardExitHourShort = input.int(14, "H", minval=0, maxval=23, inline="hardS", group=grp_short)
+hardExitMinShort  = input.int(30, "M", minval=0, maxval=59, inline="hardS", group=grp_short)
+fixedSL       = input.float(0, "Fixed SL", minval=0, inline="risk1", group=grp_short)
+fixedTarget = input.float(0, "Fixed TGT", minval=0, inline="risk1", group=grp_short)
+
+disableSL_en  = input.bool(true, "Smart SL Disable >", inline="smartSL", group=grp_short)
+disableSL_pts = input.float(10, "Pts", inline="smartSL", group=grp_short)
+useTSL      = input.bool(true, "Trailing SL | Act:", inline="tsl", group=grp_short)
+tslTrigger  = input.float(15, "", inline="tsl", group=grp_short)
+tslDist     = input.float(10, "| Dist:", inline="tsl", group=grp_short)
+
+grp_long = "========== 5. Long Strategy =========="
+long_en         = input.bool(false, "Enable Long", inline="l_en", group=grp_long)
+lotsLong        = input.int(4, "Lots", minval=1, inline="l_en", group=grp_long)
+maxLongTrades   = input.int(2, "Max Long Trades (0=Unl.)", inline="l_lim", group=grp_long)
+longStartTimeStr = input.string("09:30", "Long Start Time", inline="l_time", group=grp_long)
+
+useStrictLong = input.bool(true, "Strict Entry", inline="l_strict", group=grp_long)
+useHardExitLong  = input.bool(true, "Time Exit?", inline="hardL", group=grp_long)
+hardExitHourLong = input.int(14, "H", minval=0, maxval=23, inline="hardL", group=grp_long)
+
+hardExitMinLong  = input.int(30, "M", minval=0, maxval=59, inline="hardL", group=grp_long)
+longRestrict_en = input.bool(false, "Restrict Scope?", inline="l_scope", group=grp_long)
+longS1 = input.bool(false, "S1", inline="l_scope", group=grp_long), longS2 = input.bool(false, "S2", inline="l_scope", group=grp_long), longS3 = input.bool(false, "S3", inline="l_scope", group=grp_long), longS4 = input.bool(false, "S4", inline="l_scope", group=grp_long), longS5 = input.bool(false, "S5", inline="l_scope", group=grp_long)
+
+longFixedSL     = input.float(15, "Fixed SL", minval=0, inline="l_risk", group=grp_long)
+longTarget      = input.float(0, "Fixed TGT", minval=0, inline="l_risk", group=grp_long)
+useLongTSL      = input.bool(false, "Trailing SL | Act:", inline="l_tsl", group=grp_long)
+tslLongTrigger  = input.float(15, "", inline="l_tsl", group=grp_long)
+tslLongDist     = input.float(10, "| Dist:", inline="l_tsl", group=grp_long)
+
+grp_vis = "========== 6. Visuals =========="
+mainTablePos = input.string("Top Right", "Main Table", options=["Top Right", "Bottom Right", "Bottom Left", "Top Left", "Hide"], inline="tbl_pos", group=grp_vis)
+pnlPos       = input.string("Bottom Left", "P&L Table", options=["Top Right", "Bottom Right", "Bottom Left", "Top Left", "Hide"], inline="tbl_pos", group=grp_vis)
+showST   = input.bool(false, "SuperTrend", inline="st", group=grp_vis)
+stFactor = input.float(3.0, "Fac", step=0.1, inline="st", group=grp_vis)
+stPeriod = input.int(10, "Per", inline="st", group=grp_vis)
+
+showEMA  = input.bool(true, "EMA(20)", inline="ind1", group=grp_vis)
+showVWAP = input.bool(true, "VWAP", inline="ind1", group=grp_vis)
+showVWMA = input.bool(true, "VWMA", inline="ind1", group=grp_vis)
+vwmaLen  = input.int(35, "Len", minval=1, inline="ind1", group=grp_vis)
+
+showMomentum         = input.bool(false, "Show Mom. Labels", inline="lbl", group=grp_vis)
+showDirectionSignals = input.bool(false, "Show Dir. Labels", inline="lbl", group=grp_vis)
+showRegime = input.bool(true, "Regime", inline="cols", group=grp_vis)
+showIndReg = input.bool(true, "Ind.Reg", inline="cols", group=grp_vis)
+showTMode  = input.bool(true, "T.Mode", inline="cols", group=grp_vis)
+showTType  = input.bool(true, "T.Type", inline="cols", group=grp_vis)
+
+grp_acc = "========== 7. Account =========="
+initCapital = input.float(2300000, "Initial Capital", inline="acc", group=grp_acc)
+userLotSize = input.int(65, "Index Lot Size", inline="acc", group=grp_acc)
+
+grp_alert_s = "===== 8a. Short Alerts ====="
+stoxxoTagShort = input.string("DEFAULT", "Tag (Short)", inline="as", group=grp_alert_s)
+shortEntryMsg = input.text_area('MULTILEG:YES,TYPE:ENTRY,OPT:SHORT{{code}}_{{strike}},STAG:{{strategy}},SYMBOL:{{index}}, PRODUCT:MIS,LOTS:{{lots}}', "Entry", group=grp_alert_s)
+shortExitMsg  = input.text_area('MULTILEG:YES, TYPE:EXIT, OPT:SHORT{{code}}_{{strike}}, STAG:{{strategy}}, SYMBOL:{{index}}, PRODUCT:MIS,LOTS:{{lots}}', "Exit", group=grp_alert_s)
+
+grp_alert_l = "===== 8b. Long Alerts ====="
+stoxxoTagLong = input.string("DEFAULT", "Tag (Long)", inline="al", group=grp_alert_l)
+longEntryMsg = input.text_area('MULTILEG:YES,TYPE:ENTRY,OPT:LONG{{code}}_{{strike}},STAG:{{strategy}},SYMBOL:{{index}}, PRODUCT:MIS,LOTS:{{lots}}', "Entry", group=grp_alert_l)
+longExitMsg  = input.text_area('MULTILEG:YES,TYPE:EXIT,OPT:LONG{{code}}_{{strike}},STAG:{{strategy}},SYMBOL:{{index}}, PRODUCT:MIS,LOTS:{{lots}}', "Exit", group=grp_alert_l)
+
+//════════════════════════════════════════════════════════════════════════════
+// 2. DATA PROCESSING
+//════════════════════════════════════════════════════════════════════════════
+buildSym(_strike,_type)=>
+    exchPrefix = (indexName == "SENSEX") ? "BSE:" : "NSE:"
+    symRoot    = (indexName == "SENSEX") ? "BSX" : indexName
+    exchPrefix + symRoot + expYY + expMM + expDD + _type + str.tostring(_strike)
+
+getOC(_s)=>
+    ceO = request.security(buildSym(_s,"C"), timeframe.period, open,  ignore_invalid_symbol=true)
+    ceC = request.security(buildSym(_s,"C"), timeframe.period, close, ignore_invalid_symbol=true)
+    peO = request.security(buildSym(_s,"P"), timeframe.period, open,  ignore_invalid_symbol=true)
+    peC = request.security(buildSym(_s,"P"), timeframe.period, close, ignore_invalid_symbol=true)
+    [ceO,ceC,peO,peC]
+
+[o1c,c1c,o1p,c1p] = getOC(s1), [o2c,c2c,o2p,c2p] = getOC(s2)
+[o3c,c3c,o3p,c3p] = getOC(s3), [o4c,c4c,o4p,c4p] = getOC(s4)
+[o5c,c5c,o5p,c5p] = getOC(s5)
+
+o1 = o1c+o1p, c1 = c1c+c1p, h1 = math.max(o1,c1), l1 = math.min(o1,c1)
+o2 = o2c+o2p, c2 = c2c+c2p, h2 = math.max(o2,c2), l2 = math.min(o2,c2)
+o3 = o3c+o3p, c3 = c3c+c3p, h3 = math.max(o3,c3), l3 = math.min(o3,c3)
+o4 = o4c+o4p, c4 = c4c+c4p, h4 = math.max(o4,c4), l4 = math.min(o4,c4)
+o5 = o5c+o5p, c5 = c5c+c5p, h5 = math.max(o5,c5), l5 = math.min(o5,c5)
+
+plotcandle(s1_en and s1_show?o1:na, s1_en and s1_show?h1:na, s1_en and s1_show?l1:na, s1_en and s1_show?c1:na, color=c1>=o1?color.new(color.green,20):color.new(color.red,20))
+plotcandle(s2_en and s2_show?o2:na, s2_en and s2_show?h2:na, s2_en and s2_show?l2:na, s2_en and s2_show?c2:na, color=c2>=o2?color.new(color.green,20):color.new(color.red,20))
+plotcandle(s3_en and s3_show?o3:na, s3_en and s3_show?h3:na, s3_en and s3_show?l3:na, s3_en and s3_show?c3:na, color=c3>=o3?color.new(color.green,20):color.new(color.red,20))
+plotcandle(s4_en and s4_show?o4:na, s4_en and s4_show?h4:na, s4_en and s4_show?l4:na, s4_en and s4_show?c4:na, color=c4>=o4?color.new(color.green,20):color.new(color.red,20))
+plotcandle(s5_en and s5_show?o5:na, s5_en and s5_show?h5:na, s5_en and s5_show?l5:na, s5_en and s5_show?c5:na, color=c5>=o5?color.new(color.green,20):color.new(color.red,20))
+
+var float dO1=na, var float dO2=na, var float dO3=na, var float dO4=na, var float dO5=na
+var float ceDO1=na, var float ceDO2=na, var float ceDO3=na, var float ceDO4=na, var float ceDO5=na
+var float peDO1=na, var float peDO2=na, var float peDO3=na, var float peDO4=na, var float peDO5=na
+if ta.change(time("D"))!=0
+    dO1:=o1, dO2:=o2, dO3:=o3, dO4:=o4, dO5:=o5
+    ceDO1:=o1c, ceDO2:=o2c, ceDO3:=o3c, ceDO4:=o4c, ceDO5:=o5c
+    peDO1:=o1p, peDO2:=o2p, peDO3:=o3p, peDO4:=o4p, peDO5:=o5p
+
+calc_dmi(_h, _l, _c, _len) =>
+    up = ta.change(_h), down = -ta.change(_l)
+    plusDM = na(up)?na:(up>down and up>0?up:0), minusDM = na(down)?na:(down>up and down>0?down:0)
+    tr = ta.rma(math.max(math.max(_h-_l, math.abs(_h-nz(_c[1]))), math.abs(_l-nz(_c[1]))), _len)
+    plus = ta.rma(plusDM, _len), minus = ta.rma(minusDM, _len)
+    [100*plus/tr, 100*minus/tr, ta.rma(100*math.abs((100*plus/tr)-(100*minus/tr))/((100*plus/tr)+(100*minus/tr)), _len)]
+
+getInd(_h, _l, _c) =>
+    [_diP, _diM, _adx] = calc_dmi(_h, _l, _c, 14)
+    [ta.rsi(_c, 14), ta.roc(_c, 14), _diP, _diM, _adx]
+
+getMode(_rsi, _diP, _diM, _adx, _ready) =>
+    _ready ? (_adx<15?"SHORT":(_rsi>50 and _diP>_diM?"BUY CE":(_rsi<40 and _diM>_diP?"BUY PE":(_adx>20 and _rsi>=40 and _rsi<=60?"LONG STR":"SHORT")))) : "WAIT..."
+
+[rsi1, roc1, diP1, diM1, adx1] = getInd(h1, l1, c1)
+[rsi2, roc2, diP2, diM2, adx2] = getInd(h2, l2, c2)
+[rsi3, roc3, diP3, diM3, adx3] = getInd(h3, l3, c3)
+[rsi4, roc4, diP4, diM4, adx4] = getInd(h4, l4, c4)
+[rsi5, roc5, diP5, diM5, adx5] = getInd(h5, l5, c5)
+
+ready1 = not na(c1) and not na(dO1), ready2 = not na(c2) and not na(dO2)
+ready3 = not na(c3) and not na(dO3), ready4 = not na(c4) and not na(dO4), ready5 = not na(c5) and not na(dO5)
+
+mode1 = getMode(rsi1, diP1, diM1, adx1, ready1), mode2 = getMode(rsi2, diP2, diM2, adx2, ready2)
+mode3 = getMode(rsi3, diP3, diM3, adx3, ready3), mode4 = getMode(rsi4, diP4, diM4, adx4, ready4), mode5 = getMode(rsi5, diP5, diM5, adx5, ready5)
+
+chopLen = 14
+ci(_h,_l,_c) => 100 * math.log10(math.sum(math.max(math.max(_h-_l, math.abs(_h-nz(_c[1]))), math.abs(_l-nz(_c[1]))), chopLen) / (ta.highest(_h,chopLen)-ta.lowest(_l,chopLen))) / math.log10(chopLen)
+chopIdx1=ci(h1,l1,c1), chopIdx2=ci(h2,l2,c2), chopIndex=ci(h3,l3,c3), chopIdx4=ci(h4,l4,c4), chopIdx5=ci(h5,l5,c5)
+
+var int atmDirState = 0
+bool diPRising = ta.rising(diP3, 2), bool diMRising = ta.rising(diM3, 2)
+bool bullPressure = diP3 > diM3 and diPRising, bool bearPressure = diM3 > diP3 and diMRising
+bool bullBuilding = bullPressure and rsi3 >= 45 and rsi3 < 55 and adx3 >= 15
+bool bearBuilding = bearPressure and rsi3 <= 55 and rsi3 > 45 and adx3 >= 15
+bool bullActive =  bullPressure and rsi3 >= 55 and adx3 >= 20
+bool bearActive = bearPressure and rsi3 <= 45 and adx3 >= 20
+bool toBullBuild = bullBuilding and atmDirState != 1, bool toBearBuild = bearBuilding and atmDirState != 2
+bool toBullAct = bullActive and atmDirState != 3, bool toBearAct = bearActive and atmDirState != 4
+
+if barstate.isconfirmed and showDirectionSignals and s3_show 
+    if toBullBuild
+        atmDirState := 1
+        label.new(bar_index, l3, "BULL BUILDING", style=label.style_label_up, color=color.new(color.green, 60), textcolor=color.white, size=size.tiny)
+    else if toBearBuild
+        atmDirState := 2
+        label.new(bar_index, h3, "BEAR BUILDING", style=label.style_label_down, color=color.new(color.red, 60), textcolor=color.white, size=size.tiny)
+    else if toBullAct
+        atmDirState := 3
+        label.new(bar_index, l3, "BULL ACTIVE", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.tiny)
+    else if toBearAct
+        atmDirState := 4
+        label.new(bar_index, h3, "BEAR ACTIVE", style=label.style_label_down, color=color.red, textcolor=color.white, size=size.tiny)
+
+st_atr = ta.atr(stPeriod)
+calcST(_h, _l, _src) =>
+    _up = _src - stFactor * st_atr, _dn = _src + stFactor * st_atr
+    var float _tUp = na, var float _tDn = na, var int _t = 1
+    _tUp := (_src[1] > _tUp[1]) ? math.max(_up, _tUp[1]) : _up
+    _tDn := (_src[1] < _tDn[1]) ? math.min(_dn, _tDn[1]) : _dn
+    _t := (_src > _tDn[1]) ? 1 : (_src < _tUp[1]) ? -1 : nz(_t[1], 1)
+    [_t, _t==1 ? _tUp : _tDn]
+[st_d1, st_v1] = calcST(h1, l1, hl2), [st_d2, st_v2] = calcST(h2, l2, hl2), [st_d3, st_v3] = calcST(h3, l3, hl2)
+[st_d4, st_v4] = calcST(h4, l4, hl2), [st_d5, st_v5] = calcST(h5, l5, hl2)
+
+plot(showST and s1_en and s1_ind and s1_show?st_v1:na, "ST1", color=st_d1==1?color.green:color.red)
+plot(showST and s2_en and s2_ind and s2_show?st_v2:na, "ST2", color=st_d2==1?color.green:color.red)
+plot(showST and s3_en and s3_ind and s3_show?st_v3:na, "ST3", color=st_d3==1?color.green:color.red)
+plot(showST and s4_en and s4_ind and s4_show?st_v4:na, "ST4", color=st_d4==1?color.green:color.red)
+plot(showST and s5_en and s5_ind and s5_show?st_v5:na, "ST5", color=st_d5==1?color.green:color.red)
+
+calcInd(_c) => [ta.ema(_c,20), ta.vwma(_c,vwmaLen), ta.vwap(_c)]
+[ema20_s1, vwma_s1, vwap_s1] = calcInd(c1)
+[ema20_s2, vwma_s2, vwap_s2] = calcInd(c2)
+[ema20_ATM, vwma_ATM, vwap_ATM] = calcInd(c3)
+[ema20_s4, vwma_s4, vwap_s4] = calcInd(c4)
+[ema20_s5, vwma_s5, vwap_s5] = calcInd(c5)
+
+plot(showEMA and s1_en and s1_ind and s1_show?ema20_s1:na, "EMA1", color.orange), plot(showVWMA and s1_en and s1_ind and s1_show?vwma_s1:na, "VWMA1", color.purple), plot(showVWAP and s1_en and s1_ind and s1_show?vwap_s1:na, "VWAP1", color.yellow)
+plot(showEMA and s2_en and s2_ind and s2_show?ema20_s2:na, "EMA2", color.orange), plot(showVWMA and s2_en and s2_ind and s2_show?vwma_s2:na, "VWMA2", color.purple), plot(showVWAP and s2_en and s2_ind and s2_show?vwap_s2:na, "VWAP2", color.yellow)
+plot(showEMA and s3_en and s3_ind and s3_show?ema20_ATM:na, "EMA3", color.orange, 2), plot(showVWMA and s3_en and s3_ind and s3_show?vwma_ATM:na, "VWMA3", color.purple, 2), plot(showVWAP and s3_en and s3_ind and s3_show?vwap_ATM:na, "VWAP3", color.yellow, 2)
+plot(showEMA and s4_en and s4_ind and s4_show?ema20_s4:na, "EMA4", color.orange), plot(showVWMA and s4_en and s4_ind and s4_show?vwma_s4:na, "VWMA4", color.purple), plot(showVWAP and s4_en and s4_ind and s4_show?vwap_s4:na, "VWAP4", color.yellow)
+plot(showEMA and s5_en and s5_ind and s5_show?ema20_s5:na, "EMA5", color.orange), plot(showVWMA and s5_en and s5_ind and s5_show?vwma_s5:na, "VWMA5", color.purple), plot(showVWAP and s5_en and s5_ind and s5_show?vwap_s5:na, "VWAP5", color.yellow)
+
+calcTType(_c, _dO, _ceC, _ceDO, _peC, _peDO, _mode, _gChop) =>
+    _res = "NoTrade"
+    if not na(_c) and not na(_dO)
+        _ceG = not na(_ceC) and not na(_ceDO) ? _ceC - _ceDO : na
+        _peG = not na(_peC) and not na(_peDO) ? _peC - _peDO : na
+        _dom = not na(_ceG) and not na(_peG) ? (_ceG >= _peG ? "CE" : "PE") : "—"
+        _ceIsLeading = (_dom == "CE"), _peIsLeading = (_dom == "PE")
+        _isModeActive = (_mode == "BUY CE" or _mode == "LONG STR" or _mode == "BUY PE")
+        
+        if _gChop > 61.8 or _mode == "WAIT..."
+            _res := "NoTrade"
+        else if _mode == "SHORT" and _c < _dO 
+            _res := "Sell Str"
+        else if _isModeActive
+            if _ceIsLeading
+                _res := "Buy CE"
+            else if _peIsLeading
+                _res := "Buy PE"
+            else
+                _res := "Buy Str"
+    _res
+
+calcRegime(_c, _dO, _ceC, _ceDO, _peC, _peDO) =>
+    _res = "—"
+    if not na(_c) and not na(_dO)
+        _diff = _c - _dO
+        _strDir = _diff > 0 ? "UP" : _diff < 0 ? "DOWN" : "FLAT"
+        _ceG = not na(_ceC) and not na(_ceDO) ? _ceC - _ceDO : 0.0
+        _peG = not na(_peC) and not na(_peDO) ? _peC - _peDO : 0.0
+        _dom = (_ceG >= _peG) ? "CE" : "PE"
+        if _strDir == "UP" and _dom == "CE"
+            _res := "BULLISH"
+        else if _strDir == "UP" and _dom == "PE"
+            _res := "SHORT COV"
+        else if _strDir == "DOWN" and _dom == "PE"
+            _res := "BEARISH"
+        else if _strDir == "DOWN" and _dom == "CE"
+            _res := "DECAY"
+        else
+            _res := "SIDEWAYS"
+    _res
+
+tType1 = calcTType(c1, dO1, c1c, ceDO1, c1p, peDO1, mode1, chopIdx1)
+tType2 = calcTType(c2, dO2, c2c, ceDO2, c2p, peDO2, mode2, chopIdx2)
+tType3 = calcTType(c3, dO3, c3c, ceDO3, c3p, peDO3, mode3, chopIndex)
+tType4 = calcTType(c4, dO4, c4c, ceDO4, c4p, peDO4, mode4, chopIdx4)
+tType5 = calcTType(c5, dO5, c5c, ceDO5, c5p, peDO5, mode5, chopIdx5)
+
+regime1 = calcRegime(c1, dO1, c1c, ceDO1, c1p, peDO1)
+regime2 = calcRegime(c2, dO2, c2c, ceDO2, c2p, peDO2)
+regime3 = calcRegime(c3, dO3, c3c, ceDO3, c3p, peDO3)
+regime4 = calcRegime(c4, dO4, c4c, ceDO4, c4p, peDO4)
+regime5 = calcRegime(c5, dO5, c5c, ceDO5, c5p, peDO5)
+
+bool triggerLong1 = long_en and s1_en and tType1 == "Buy CE" and (longRestrict_en ? longS1 : true)
+bool triggerLong2 = long_en and s2_en and tType2 == "Buy CE" and (longRestrict_en ? longS2 : true)
+bool triggerLong3 = long_en and s3_en and tType3 == "Buy CE" and (longRestrict_en ? longS3 : true)
+bool triggerLong4 = long_en and s4_en and tType4 == "Buy CE" and (longRestrict_en ? longS4 : true)
+bool triggerLong5 = long_en and s5_en and tType5 == "Buy CE" and (longRestrict_en ? longS5 : true)
+
+bool triggerTrap1 = long_en and s1_en and tType1 == "Buy PE" and regime1 == "SHORT COV" and (longRestrict_en ? longS1 : true)
+bool triggerTrap2 = long_en and s2_en and tType2 == "Buy PE" and regime2 == "SHORT COV" and (longRestrict_en ? longS2 : true)
+bool triggerTrap3 = long_en and s3_en and tType3 == "Buy PE" and regime3 == "SHORT COV" and (longRestrict_en ? longS3 : true)
+bool triggerTrap4 = long_en and s4_en and tType4 == "Buy PE" and regime4 == "SHORT COV" and (longRestrict_en ? longS4 : true)
+bool triggerTrap5 = long_en and s5_en and tType5 == "Buy PE" and regime5 == "SHORT COV" and (longRestrict_en ? longS5 : true)
+
+bool triggerShort1 = short_en and s1_en and (shortRestrict_en ? shortS1 : true)
+bool triggerShort2 = short_en and s2_en and (shortRestrict_en ? shortS2 : true)
+bool triggerShort3 = short_en and s3_en and (shortRestrict_en ? shortS3 : true)
+bool triggerShort4 = short_en and s4_en and (shortRestrict_en ? shortS4 : true)
+bool triggerShort5 = short_en and s5_en and (shortRestrict_en ? shortS5 : true)
+
+getPos(str) => str=="Bottom Right"?position.bottom_right:str=="Bottom Left"?position.bottom_left:str=="Top Right"?position.top_right:str=="Top Left"?position.top_left:position.bottom_left
+var table t = table.new(getPos(mainTablePos), 9, 7, bgcolor=(mainTablePos=="Hide"?color.new(color.black,100):color.rgb(30,30,30)), frame_width=1, border_width=1, border_color=color.rgb(60,60,60))
+
+fmt(v) => na(v) ? "—" : str.tostring(v, "#.##")
+
+drawRow(r, strk, dO, c, ceC, peC, ceDO, peDO, isATM, _localMode, _gChop, _indReg, _tTypeStr) =>
+    has = not na(c) and not na(dO)
+    rowBg = isATM ? color.rgb(255, 225, 80) : color.new(color.black, 0)
+    txtStd = isATM ? color.black : color.new(color.white, 30) 
+    txtDim = isATM ? color.rgb(60, 60, 60) : color.new(color.gray, 30)
+    textSize = isATM ? size.normal : size.small
+    colUp  = isATM ? color.rgb(0, 100, 0) : color.new(color.green, 30)
+    colDn  = isATM ? color.rgb(200, 0, 0) : color.new(color.red, 30)
+    diff = has ? c - dO : na
+    chgStr = (diff > 0 ? "+" : "") + fmt(diff)
+    chgCol = diff > 0 ? colUp : diff < 0 ? colDn : txtDim
+    ceG = not na(ceC) and not na(ceDO) ? ceC - ceDO : na
+    peG = not na(peC) and not na(peDO) ? peC - peDO : na
+    dom = not na(ceG) and not na(peG) ? (ceG >= peG ? "CE" : "PE") : "—"
+    sigArrow = dom == "CE" ? "▲" : dom == "PE" ? "▼" : ""
+    dirArrow = not has ? "" : c > dO ? "↑" : c < dO ? "↓" : ""
+    mergedLead = dom + " " + sigArrow + " " + dirArrow
+    sigCol = dom == "CE" ? colUp : dom == "PE" ? colDn : txtDim
+    strDir = not has ? "—" : c > dO ? "UP" : c < dO ? "DOWN" : "FLAT"
+    regimeText = not has ? "—" : strDir=="UP" and dom=="CE" ? "BULLISH" : strDir=="UP" and dom=="PE" ? "SHORT COV" : strDir=="DOWN" and dom=="PE" ? "BEARISH" : strDir=="DOWN" and dom=="CE" ? "DECAY" : "SIDEWAYS"
+    regimeBg = regimeText == "BULLISH" ? color.new(color.green, 30) : regimeText == "BEARISH" ? color.new(color.red, 30) : regimeText == "SHORT COV" ? color.new(color.blue, 30) : regimeText == "DECAY" ? color.new(color.gray, 30) : color.new(color.black, 0)
+    modeBg = _localMode=="WAIT..."?color.gray : _localMode=="BUY CE"?color.new(color.green,60) : _localMode=="BUY PE"?color.new(color.red,60) : _localMode=="LONG STR"?color.new(color.blue, 60) : color.new(color.orange,60)
+    tTypeCol = txtDim
+    if _tTypeStr == "Buy CE" or _tTypeStr == "Buy PE"
+        tTypeCol := color.green
+    else if _tTypeStr == "Sell Str"
+        tTypeCol := color.red
+    else if _tTypeStr == "Buy Str"
+        tTypeCol := color.rgb(100, 100, 255)
+    
+    indRegBg = _indReg == "Bullish" ? color.new(color.green, 40) : _indReg == "Bearish" ? color.new(color.red, 40) : rowBg
+    indRegTxt = _indReg == "Bullish" or _indReg == "Bearish" ? color.white : txtDim
+
+    table.cell(t, 0, r, str.tostring(strk), bgcolor=rowBg, text_color=txtStd, text_size=textSize)
+    table.cell(t, 1, r, fmt(dO),            bgcolor=rowBg, text_color=txtDim, text_size=textSize)
+    table.cell(t, 2, r, fmt(c),             bgcolor=rowBg, text_color=txtStd, text_size=textSize)
+    table.cell(t, 3, r, chgStr,             bgcolor=rowBg, text_color=chgCol, text_size=textSize) 
+    table.cell(t, 4, r, mergedLead,         bgcolor=rowBg, text_color=sigCol, text_size=textSize)
+    table.cell(t, 5, r, showRegime ? regimeText : "—", bgcolor=regimeBg, text_color=color.white, text_size=size.small)
+    table.cell(t, 6, r, showIndReg ? _indReg    : "—", bgcolor=indRegBg, text_color=indRegTxt, text_size=size.small)
+    table.cell(t, 7, r, showTMode  ? _localMode : "—", bgcolor=modeBg,   text_color=color.white, text_size=size.small)
+    table.cell(t, 8, r, showTType  ? _tTypeStr  : "—", bgcolor=rowBg,    text_color=tTypeCol, text_size=size.small)
+
+getIndReg(_rsi, _diP, _diM, _adx) => _adx < 15 ? "NoTrend" : _rsi > 55 and _diP > _diM ? "Bullish" : _rsi < 45 and _diM > _diP ? "Bearish" : "Neutral"
+indReg1=getIndReg(rsi1,diP1,diM1,adx1), indReg2=getIndReg(rsi2,diP2,diM2,adx2), indReg3=getIndReg(rsi3,diP3,diM3,adx3), indReg4=getIndReg(rsi4,diP4,diM4,adx4), indReg5=getIndReg(rsi5,diP5,diM5,adx5)
+
+if barstate.islast and mainTablePos != "Hide"
+    hBg = color.new(color.blue, 30), hTx = color.white
+    table.cell(t,0,0,"STRIKE",bgcolor=hBg,text_color=hTx), table.cell(t,1,0,"OPEN",bgcolor=hBg,text_color=hTx), table.cell(t,2,0,"LTP",bgcolor=hBg,text_color=hTx), table.cell(t,3,0,"CHANGE",bgcolor=hBg,text_color=hTx), table.cell(t,4,0,"LEAD",bgcolor=hBg,text_color=hTx)
+    table.cell(t,5,0,showRegime?"REGIME":"—",bgcolor=hBg,text_color=hTx), table.cell(t,6,0,showIndReg?"IND.REG":"—",bgcolor=hBg,text_color=hTx), table.cell(t,7,0,showTMode?"T.MODE":"—",bgcolor=hBg,text_color=hTx), table.cell(t,8,0,showTType?"T.TYPE":"—",bgcolor=hBg,text_color=hTx)
+    drawRow(1, s1, dO1, c1, c1c, c1p, ceDO1, peDO1, false, mode1, chopIdx1, indReg1, tType1)
+    drawRow(2, s2, dO2, c2, c2c, c2p, ceDO1, peDO2, false, mode2, chopIdx2, indReg2, tType2)
+    drawRow(3, s3, dO3, c3, c3c, c3p, ceDO3, peDO3, true,  mode3, chopIndex, indReg3, tType3)
+    drawRow(4, s4, dO4, c4, c4c, c4p, ceDO4, peDO4, false, mode4, chopIdx4, indReg4, tType4)
+    drawRow(5, s5, dO5, c5, c5c, c5p, ceDO5, peDO5, false, mode5, chopIdx5, indReg5, tType5)
+    
+    rocStr = ready3 ? "ROC " + str.tostring(roc3, "#.1") : "ROC —", rocCol = roc3 > 0 ? color.green : roc3 < 0 ? color.red : color.gray
+    table.cell(t, 0, 6, rocStr, bgcolor=color.black, text_color=rocCol)
+    table.merge_cells(t, 1, 6, 2, 6), table.cell(t, 1, 6, ready3 ? "RSI "+str.tostring(rsi3,"#") : "RSI —", text_color=color.white, bgcolor=color.black)
+    bool bulls = diP3 > diM3, colMinus = bulls ? color.gray : color.green, colPlus  = bulls ? color.green : color.gray
+    table.cell(t, 3, 6, ready3 ? "-DI "+str.tostring(diM3,"#") : "-DI —", text_color=ready3 ? colMinus : color.gray, bgcolor=color.black)
+    table.cell(t, 4, 6, ready3 ? "+DI "+str.tostring(diP3,"#") : "+DI —", text_color=ready3 ? colPlus : color.gray, bgcolor=color.black)
+    chopCol = chopIndex > 61.8 ? color.orange : color.gray, chopStr = ready3 ? "CHOP " + str.tostring(chopIndex, "#") : "CHOP —"
+    table.cell(t, 5, 6, chopStr, text_color=ready3 ? chopCol : color.gray, bgcolor=color.black)
+    table.cell(t, 6, 6,"—", bgcolor=color.black, text_color=color.gray), table.cell(t, 7, 6, "—", bgcolor=color.black, text_color=color.gray), table.cell(t, 8, 6, "—", bgcolor=color.black, text_color=color.gray)
+
+inSession = not na(time(timeframe.period, "0915-1430", "Asia/Kolkata"))
+useStrict = calcMode == "Strict" ? true : (calcMode == "Simple" ? false : (not na(volume) and volume > 0))
+
+procSignal(_o, _c, _h, _l, _ema, _vwap, _vwma, _rsi, _diP, _diM, _roc, _chop, _ready, _en, _tType, _revMinSize, _scopeEn, _scopeMe, _regime) => 
+    _safeClose = nz(_c), _safeEMA = nz(_ema), _safeVWAP = nz(_vwap), _safeVWMA = nz(_vwma)
+    _valRSI = nz(_rsi), _valDP = nz(_diP), _valDM = nz(_diM), _valROC = nz(_roc)
+    _dataReady = _ready and not na(_ema) and not na(_rsi)
+    _isChoppy = filterChop and (_chop > chopLimit)
+    _xUnderEMA = ta.crossunder(_safeEMA, _safeVWAP)
+    _xUnderVWMA = ta.crossunder(_safeVWMA, _safeVWAP)
+    _buyCond = false
+    if _dataReady and inSession and not _isChoppy and _en
+        _priceBuy = useStrict ? ((_safeClose > _safeEMA) and (_safeClose > _safeVWAP or _safeClose > _safeVWMA)) : (_safeClose > _safeEMA)
+        _indBuy = (_valRSI > 40) and (_valDP > _valDM) and (_valROC > 0)
+        _buyCond := (_priceBuy and _indBuy) or ((_safeClose > _safeVWAP) and (_safeVWAP > _safeVWMA))
+
+    _sellCond = false
+    string _trigStr = "—"
+    if _dataReady and inSession and not _isChoppy and _en
+        _priceSell = useStrict ? ((_safeClose < _safeEMA) and (_safeClose < _safeVWAP or _safeClose < _safeVWMA)) : (_safeClose < _safeEMA)
+        _oldPart = _priceSell and (_valRSI < 40) and (_valDM > _valDP) and (_valROC < 0)
+        _crossEvent = _xUnderEMA or _xUnderVWMA
+        _barsSinceCross = ta.barssince(_crossEvent)
+        _newPart = (crossoverWindow == 0) ? ((_safeEMA < _safeVWAP) or (_safeVWMA < _safeVWAP)) : (not na(_barsSinceCross) and _barsSinceCross <= crossoverWindow)
+        _revPart = false
+        if useVwapReversal
+            bool _scopeAllowed = _scopeEn ? _scopeMe : true
+            if _scopeAllowed and _tType == "Buy PE" and _regime != "SHORT COV" 
+                _prevGreen = _c[1] > _o[1]
+                _prevAboveVWAP = _c[1] > _safeVWAP[1] 
+                _currRed = _c < _o
+                _prevBody = math.abs(_c[1] - _o[1])
+                _currBody = math.abs(_c - _o)
+                bool _sizeMet = false
+                if _prevGreen and _prevAboveVWAP and _currRed
+                    if _prevBody <= 3.0
+                        if _currBody >= _revMinSize
+                            _sizeMet := true
+                    else
+                        if _currBody >= _revMinSize and _currBody >= (0.8 * _prevBody)
+                            _sizeMet := true
+                if _sizeMet
+                    _revPart := true
+                else
+                    if _c[2] > _safeVWAP[2] and _c < _o and _currBody >= _revMinSize
+                        _revPart := true
+
+        bool satisfyOld = useOldLogic ? _oldPart : true
+        bool satisfyNew = useNewLogic ? _newPart : true
+        bool baseMet = (not useOldLogic and not useNewLogic) ? false : (satisfyOld and satisfyNew)
+        _sellCond := baseMet or _revPart
+        if _revPart
+            _trigStr := "VWAP.REV"
+        else if baseMet
+            if useOldLogic and useNewLogic
+                _trigStr := "BASE"
+            else if useOldLogic
+                _trigStr := "OLD"
+            else if useNewLogic
+                _trigStr := "NEW"
+    
+    _panicLong = (_safeClose < _safeVWAP) and (_safeVWAP < _safeVWMA)
+    [_buyCond, _sellCond, _trigStr, _panicLong]
+
+var int lSig1=0, var int lSig2=0, var int lSig3=0, var int lSig4=0, var int lSig5=0
+var float ep1=na, var float ep2=na, var float ep3=na, var float ep4=na, var float ep5=na
+var int et1=na, var int et2=na, var int et3=na, var int et4=na, var int et5=na
+var float banked1=0.0, var float banked2=0.0, var float banked3=0.0, var float banked4=0.0, var float banked5=0.0
+var int xt1=na, var int xt2=na, var int xt3=na, var int xt4=na, var int xt5=na
+var string trig1="—", var string trig2="—", var string trig3="—", var string trig4="—", var string trig5="—"
+var bool isLong1=false, var bool isLong2=false, var bool isLong3=false, var bool isLong4=false, var bool isLong5=false
+var bool slSafe1 = false, var bool slSafe2 = false, var bool slSafe3 = false, var bool slSafe4 = false, var bool slSafe5 = false
+var float ll1=na, var float ll2=na, var float ll3=na, var float ll4=na, var float ll5=na
+
+var int lSigLong1=0, var int lSigLong2=0, var int lSigLong3=0, var int lSigLong4=0, var int lSigLong5=0
+var float epLong1=na, var float epLong2=na, var float epLong3=na, var float epLong4=na, var float epLong5=na
+var float hh1=na, var float hh2=na, var float hh3=na, var float hh4=na, var float hh5=na
+
+var float wallet = initCapital, var float dailyPnL = 0.0
+var float[] historyPnL = array.new_float(0)
+
+var int cntShort1 = 0, var int cntShort2 = 0, var int cntShort3 = 0, var int cntShort4 = 0, var int cntShort5 = 0
+var int cntLong1 = 0, var int cntLong2 = 0, var int cntLong3 = 0, var int cntLong4 = 0, var int cntLong5 = 0
+
+if ta.change(time("D"))!=0
+    float _yPnl = 0.0
+    _yPnl := _yPnl + (banked1 * userLotSize * (isLong1 ? lotsLong : lotsShort))
+    _yPnl := _yPnl + (banked2 * userLotSize * (isLong2 ? lotsLong : lotsShort))
+    _yPnl := _yPnl + (banked3 * userLotSize * (isLong3 ? lotsLong : lotsShort))
+    _yPnl := _yPnl + (banked4 * userLotSize * (isLong4 ? lotsLong : lotsShort))
+    _yPnl := _yPnl + (banked5 * userLotSize * (isLong5 ? lotsLong : lotsShort))
+    if array.size(historyPnL) >= 5
+        array.shift(historyPnL)
+    array.push(historyPnL, _yPnl)
+    lSig1:=0, lSig2:=0, lSig3:=0, lSig4:=0, lSig5:=0
+    lSigLong1:=0, lSigLong2:=0, lSigLong3:=0, lSigLong4:=0, lSigLong5:=0
+    ep1:=na, epLong1:=na, banked1:=0.0, hh1:=na, et1:=na, xt1:=na
+    ep2:=na, epLong2:=na, banked2:=0.0, hh2:=na, et2:=na, xt2:=na
+    ep3:=na, epLong3:=na, banked3:=0.0, hh3:=na, et3:=na, xt3:=na
+    ep4:=na, epLong4:=na, banked4:=0.0, hh4:=na, et4:=na, xt4:=na
+    ep5:=na, epLong5:=na, banked5:=0.0, hh5:=na, et5:=na, xt5:=na
+    isLong1:=false, isLong2:=false, isLong3:=false, isLong4:=false, isLong5:=false
+    slSafe1:=false, slSafe2:=false, slSafe3:=false, slSafe4:=false, slSafe5:=false
+    ll1:=na, ll2:=na, ll3:=na, ll4:=na, ll5:=na
+    dailyPnL := 0.0
+    cntShort1:=0, cntShort2:=0, cntShort3:=0, cntShort4:=0, cntShort5:=0
+    cntLong1:=0, cntLong2:=0, cntLong3:=0, cntLong4:=0, cntLong5:=0
+
+[b1, s1_sig, t1_str, p1] = procSignal(o1, c1, h1, l1, ema20_s1, vwap_s1, vwma_s1, rsi1, diP1, diM1, roc1, chopIdx1, ready1, s1_en, tType1, revMinSize, vwapRestrict_en, vwapS1, regime1)
+[b2, s2_sig, t2_str, p2] = procSignal(o2, c2, h2, l2, ema20_s2, vwap_s2, vwma_s2, rsi2, diP2, diM2, roc2, chopIdx2, ready2, s2_en, tType2, revMinSize, vwapRestrict_en, vwapS2, regime2)
+[b3, s3_sig, t3_str, p3] = procSignal(o3, c3, h3, l3, ema20_ATM, vwap_ATM, vwma_ATM, rsi3, diP3, diM3, roc3, chopIndex, ready3, s3_en, tType3, revMinSize, vwapRestrict_en, vwapS3, regime3)
+[b4, s4_sig, t4_str, p4] = procSignal(o4, c4, h4, l4, ema20_s4, vwap_s4, vwma_s4, rsi4, diP4, diM4, roc4, chopIdx4, ready4, s4_en, tType4, revMinSize, vwapRestrict_en, vwapS4, regime4)
+[b5, s5_sig, t5_str, p5] = procSignal(o5, c5, h5, l5, ema20_s5, vwap_s5, vwma_s5, rsi5, diP5, diM5, roc5, chopIdx5, ready5, s5_en, tType5, revMinSize, vwapRestrict_en, vwapS5, regime5)
+
+isHardExitShort = useHardExitShort and (hour(time) > hardExitHourShort or (hour(time) == hardExitHourShort and minute(time) >= hardExitMinShort))
+isHardExitLong  = useHardExitLong  and (hour(time) > hardExitHourLong  or (hour(time) == hardExitHourLong  and minute(time) >= hardExitMinLong))
+
+// !!! FIX APPLIED HERE: Remove colon from user input !!!
+cleanStart = str.replace_all(longStartTimeStr, ":", "")
+t_longStart = time(timeframe.period, cleanStart + "-1515", "Asia/Kolkata")
+canLongStart = not na(t_longStart)
+
+inBacktestRange = time >= timestamp(syminfo.timezone, btYear, btMonth, btDay, 0, 0) and time <= timestamp(syminfo.timezone, btEndYear, btEndMonth, btEndDay, 23, 59)
+
+if not inBacktestRange
+    b1 := false, s1_sig := false, b2 := false, s2_sig := false, b3 := false, s3_sig := false, b4 := false, s4_sig := false, b5 := false, s5_sig := false
+
+trigAlert(_ticker, _strike, _price, _lots, _msgTemplate, _strategy) =>
+    _m = _msgTemplate
+    _idxCode = "NF"
+    if indexName == "BANKNIFTY" 
+        _idxCode := "BN"
+    else if indexName == "SENSEX" 
+        _idxCode := "SX"
+    
+    // START CHANGE: Mapping Strike Numbers to Labels
+    string _sLabel = str.tostring(_strike)
+    if _strike == s1
+        _sLabel := "ITM2"
+    else if _strike == s2
+        _sLabel := "ITM1"
+    else if _strike == s3
+        _sLabel := "ATM"
+    else if _strike == s4
+        _sLabel := "OTM1"
+    else if _strike == s5
+        _sLabel := "OTM5"
+    // END CHANGE
+
+    _m := str.replace_all(_m, "{{code}}", _idxCode)
+    _m := str.replace_all(_m, "{{ticker}}", _ticker)
+    _m := str.replace_all(_m, "{{strike}}", _sLabel) // Using mapped label instead of raw strike
+    _m := str.replace_all(_m, "{{price}}", str.tostring(_price))
+    _m := str.replace_all(_m, "{{lots}}", str.tostring(_lots))
+    _m := str.replace_all(_m, "{{strategy}}", _strategy)
+    _m := str.replace_all(_m, "{{index}}", indexName)
+    alert(_m, alert.freq_once_per_bar_close)
+
+if barstate.isconfirmed
+    // STRIKE 1 SHORT
+    bool allowShort1 = (maxShortTrades == 0 or cntShort1 < maxShortTrades) and lSigLong1 == 0
+    if lSig1 == -1 and isHardExitShort
+        if s1_show
+            label.new(bar_index, h1, "TIME EXIT", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
+        _pnl = ep1 - nz(c1), banked1 := banked1 + _pnl, lSig1 := 0, xt1 := time, slSafe1 := false
+        trigAlert(buildSym(s1, "STR"), s1, c1, lotsShort, shortExitMsg, stoxxoTagShort)
+    else if lSig1 == -1
+        ll1 := na(ll1) ? l1 : math.min(ll1, l1)
+        bool _tgtHit = (fixedTarget > 0 and l1 <= (ep1 - fixedTarget))
+        // TSL CONDITION (PRICE BASED)
+        bool _tslHit = (useTSL and (ep1 - ll1) >= tslTrigger and h1 >= (ll1 + tslDist))
+        // SMART GUARD: IF TSL ACTIVE (IN PROFIT), EXIT IF CANDLE CLOSES ABOVE EMA & VWMA (IGNORING MOMENTUM)
+        bool _smartGuardShort = (useTSL and (ep1 - ll1) >= tslTrigger and c1 > ema20_s1 and c1 > vwma_s1)
+        
+        if _tgtHit
+            if s1_show
+                label.new(bar_index, l1, "TGT HIT", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+            _pnl = (ep1 - (ep1 - fixedTarget)), banked1 := banked1 + _pnl, lSig1 := 0, xt1 := time, slSafe1 := false
+            trigAlert(buildSym(s1, "STR"), s1, c1, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if _smartGuardShort // NEW SMART EXIT
+            if s1_show
+                label.new(bar_index, l1, "SMART EXIT", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+            _pnl = ep1 - nz(c1), banked1 := banked1 + _pnl, lSig1 := 0, xt1 := time, slSafe1 := false
+            trigAlert(buildSym(s1, "STR"), s1, c1, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if _tslHit
+            if s1_show
+                label.new(bar_index, h1, "TSL HIT", style=label.style_label_down, color=color.purple, textcolor=color.white, size=size.small)
+            _pnl = (ep1 - (ll1 + tslDist)), banked1 := banked1 + _pnl, lSig1 := 0, xt1 := time, slSafe1 := false
+            trigAlert(buildSym(s1, "STR"), s1, c1, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if disableSL_en and (ep1 - l1) >= disableSL_pts
+            slSafe1 := true
+        else if fixedSL > 0 and h1 >= (ep1 + fixedSL) and not slSafe1
+            if s1_show
+                label.new(bar_index, h1, "SL HIT", style=label.style_label_down, color=color.black, textcolor=color.white, size=size.small)
+            _pnl = (ep1 - (ep1 + fixedSL)), banked1 := banked1 + _pnl, lSig1 := 0, xt1 := time, slSafe1 := false
+            trigAlert(buildSym(s1, "STR"), s1, c1, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if b1
+            if s1_show
+                label.new(bar_index, l1, "exit", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+            _pnl = ep1 - nz(c1), banked1 := banked1 + _pnl, lSig1 := 0, xt1 := time, slSafe1 := false
+            trigAlert(buildSym(s1, "STR"), s1, c1, lotsShort, shortExitMsg, stoxxoTagShort)
+    else if s1_sig and lSig1 != -1 and allowShort1 and triggerShort1
+        if s1_show
+            label.new(bar_index, h1, "SELL", style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+        lSig1 := -1, ep1 := c1, et1 := time, trig1 := t1_str, isLong1 := false, slSafe1 := false, ll1 := na
+        cntShort1 := cntShort1 + 1 // INCREMENT SHORT
+        trigAlert(buildSym(s1, "STR"), s1, c1, lotsShort, shortEntryMsg, stoxxoTagShort)
+
+    // STRIKE 1 LONG
+    bool allowLong1 = (maxLongTrades == 0 or cntLong1 < maxLongTrades) and lSig1 == 0
+    if lSigLong1 == 2
+        hh1 := math.max(nz(hh1), h1)
+        bool _condHard = isHardExitLong
+        bool _condTGT  = (longTarget > 0 and h1 >= epLong1 + longTarget)
+        bool _condSL   = (longFixedSL > 0 and l1 <= epLong1 - longFixedSL)
+        bool _condTSL  = (useLongTSL and (hh1 - epLong1) >= tslLongTrigger and l1 <= hh1 - tslLongDist)
+        bool _condStr  = (c1 < ema20_s1 and c1 < vwma_s1 and c1 < vwap_s1)
+        bool _condPanic= p1
+
+        if _condHard or _condTGT or _condSL or _condTSL or _condStr or _condPanic
+            _pnl = nz(c1) - epLong1
+            if _condTGT
+                _pnl := (epLong1 + longTarget) - epLong1
+                if s1_show
+                    label.new(bar_index, h1, "TGT HIT", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
+            else if _condSL
+                _pnl := (epLong1 - longFixedSL) - epLong1
+                if s1_show
+                    label.new(bar_index, l1, "SL HIT", style=label.style_label_up, color=color.black, textcolor=color.white, size=size.small)
+            else if _condTSL
+                _pnl := (hh1 - tslLongDist) - epLong1
+                if s1_show
+                    label.new(bar_index, l1, "TSL HIT", style=label.style_label_up, color=color.purple, textcolor=color.white, size=size.small)
+            else if _condStr
+                if s1_show
+                    label.new(bar_index, l1, "STRUCT BRK", style=label.style_label_up, color=color.orange, textcolor=color.white, size=size.small)
+            else if _condHard
+                if s1_show
+                    label.new(bar_index, l1, "TIME EXIT", style=label.style_label_up, color=color.orange, textcolor=color.white, size=size.small)
+            
+            banked1 := banked1 + _pnl, lSigLong1 := 0, xt1 := time
+            trigAlert(buildSym(s1, "STR"), s1, c1, lotsLong, longExitMsg, stoxxoTagLong)
+
+    else if lSigLong1 == 0 and allowLong1 and inSession and canLongStart
+        bool _sigVal = triggerLong1 or triggerTrap1
+        bool _strVal = c1 > ema20_s1 and c1 > vwma_s1 and c1 > vwap_s1
+        bool _finalEntry = useStrictLong ? (_sigVal and _strVal) : _sigVal
+
+        if _finalEntry
+            if s1_show
+                label.new(bar_index, l1, "BUY-V", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+            lSigLong1 := 2, epLong1 := c1, et1 := time, trig1 := "BUY-V", hh1 := c1, isLong1 := true
+            cntLong1 := cntLong1 + 1
+            trigAlert(buildSym(s1, "STR"), s1, c1, lotsLong, longEntryMsg, stoxxoTagLong)
+
+    // STRIKE 2 SHORT
+    bool allowShort2 = (maxShortTrades == 0 or cntShort2 < maxShortTrades) and lSigLong2 == 0
+    if lSig2 == -1 and isHardExitShort
+        if s2_show
+            label.new(bar_index, h2, "TIME EXIT", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
+        _pnl = ep2 - nz(c2), banked2 := banked2 + _pnl, lSig2 := 0, xt2 := time, slSafe2 := false
+        trigAlert(buildSym(s2, "STR"), s2, c2, lotsShort, shortExitMsg, stoxxoTagShort)
+    else if lSig2 == -1
+        ll2 := na(ll2) ? l2 : math.min(ll2, l2)
+        bool _tgtHit = (fixedTarget > 0 and l2 <= (ep2 - fixedTarget))
+        bool _tslHit = (useTSL and (ep2 - ll2) >= tslTrigger and h2 >= (ll2 + tslDist))
+        bool _smartGuardShort2 = (useTSL and (ep2 - ll2) >= tslTrigger and c2 > ema20_s2 and c2 > vwma_s2)
+        
+        if _tgtHit
+            if s2_show
+                label.new(bar_index, l2, "TGT HIT", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+            _pnl = (ep2 - (ep2 - fixedTarget)), banked2 := banked2 + _pnl, lSig2 := 0, xt2 := time, slSafe2 := false
+            trigAlert(buildSym(s2, "STR"), s2, c2, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if _smartGuardShort2
+            if s2_show
+                label.new(bar_index, l2, "SMART EXIT", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+            _pnl = ep2 - nz(c2), banked2 := banked2 + _pnl, lSig2 := 0, xt2 := time, slSafe2 := false
+            trigAlert(buildSym(s2, "STR"), s2, c2, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if _tslHit
+            if s2_show
+                label.new(bar_index, h2, "TSL HIT", style=label.style_label_down, color=color.purple, textcolor=color.white, size=size.small)
+            _pnl = (ep2 - (ll2 + tslDist)), banked2 := banked2 + _pnl, lSig2 := 0, xt2 := time, slSafe2 := false
+            trigAlert(buildSym(s2, "STR"), s2, c2, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if disableSL_en and (ep2 - l2) >= disableSL_pts
+            slSafe2 := true
+        else if fixedSL > 0 and h2 >= (ep2 + fixedSL) and not slSafe2
+            if s2_show
+                label.new(bar_index, h2, "SL HIT", style=label.style_label_down, color=color.black, textcolor=color.white, size=size.small)
+            _pnl = (ep2 - (ep2 + fixedSL)), banked2 := banked2 + _pnl, lSig2 := 0, xt2 := time, slSafe2 := false
+            trigAlert(buildSym(s2, "STR"), s2, c2, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if b2
+            if s2_show
+                label.new(bar_index, l2, "exit", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+            _pnl = ep2 - nz(c2), banked2 := banked2 + _pnl, lSig2 := 0, xt2 := time, slSafe2 := false
+            trigAlert(buildSym(s2, "STR"), s2, c2, lotsShort, shortExitMsg, stoxxoTagShort)
+    else if s2_sig and lSig2 != -1 and allowShort2 and triggerShort2
+        if s2_show
+            label.new(bar_index, h2, "SELL", style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+        lSig2 := -1, ep2 := c2, et2 := time, trig2 := t2_str, isLong2 := false, slSafe2 := false, ll2 := na
+        cntShort2 := cntShort2 + 1
+        trigAlert(buildSym(s2, "STR"), s2, c2, lotsShort, shortEntryMsg, stoxxoTagShort)
+
+    // STRIKE 2 LONG
+    bool allowLong2 = (maxLongTrades == 0 or cntLong2 < maxLongTrades) and lSig2 == 0
+    if lSigLong2 == 2
+        hh2 := math.max(nz(hh2), h2)
+        bool _condHard = isHardExitLong
+        bool _condTGT  = (longTarget > 0 and h2 >= epLong2 + longTarget)
+        bool _condSL   = (longFixedSL > 0 and l2 <= epLong2 - longFixedSL)
+        bool _condTSL  = (useLongTSL and (hh2 - epLong2) >= tslLongTrigger and l2 <= hh2 - tslLongDist)
+        bool _condStr  = (c2 < ema20_s2 and c2 < vwma_s2 and c2 < vwap_s2)
+        bool _condPanic= p2
+
+        if _condHard or _condTGT or _condSL or _condTSL or _condStr or _condPanic
+            _pnl = nz(c2) - epLong2
+            if _condTGT
+                _pnl := (epLong2 + longTarget) - epLong2
+                if s2_show
+                    label.new(bar_index, h2, "TGT HIT", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
+            else if _condSL
+                _pnl := (epLong2 - longFixedSL) - epLong2
+                if s2_show
+                    label.new(bar_index, l2, "SL HIT", style=label.style_label_up, color=color.black, textcolor=color.white, size=size.small)
+            else if _condTSL
+                _pnl := (hh2 - tslLongDist) - epLong2
+                if s2_show
+                    label.new(bar_index, l2, "TSL HIT", style=label.style_label_up, color=color.purple, textcolor=color.white, size=size.small)
+            else if _condStr
+                if s2_show
+                    label.new(bar_index, l2, "STRUCT BRK", style=label.style_label_up, color=color.orange, textcolor=color.white, size=size.small)
+            else if _condHard
+                if s2_show
+                    label.new(bar_index, l2, "TIME EXIT", style=label.style_label_up, color=color.orange, textcolor=color.white, size=size.small)
+            
+            banked2 := banked2 + _pnl, lSigLong2 := 0, xt2 := time
+            trigAlert(buildSym(s2, "STR"), s2, c2, lotsLong, longExitMsg, stoxxoTagLong)
+
+    else if lSigLong2 == 0 and allowLong2 and inSession and canLongStart
+        bool _sigVal = triggerLong2 or triggerTrap2
+        bool _strVal = c2 > ema20_s2 and c2 > vwma_s2 and c2 > vwap_s2
+        bool _finalEntry = useStrictLong ? (_sigVal and _strVal) : _sigVal
+
+        if _finalEntry
+            if s2_show
+                label.new(bar_index, l2, "BUY-V", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+            lSigLong2 := 2, epLong2 := c2, et2 := time, trig2 := "BUY-V", hh2 := c2, isLong2 := true
+            cntLong2 := cntLong2 + 1
+            trigAlert(buildSym(s2, "STR"), s2, c2, lotsLong, longEntryMsg, stoxxoTagLong)
+
+    // STRIKE 3 SHORT
+    bool allowShort3 = (maxShortTrades == 0 or cntShort3 < maxShortTrades) and lSigLong3 == 0
+    if lSig3 == -1 and isHardExitShort
+        if s3_show
+            label.new(bar_index, h3, "TIME EXIT", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
+        _pnl = ep3 - nz(c3), banked3 := banked3 + _pnl, lSig3 := 0, xt3 := time, slSafe3 := false
+        trigAlert(buildSym(s3, "STR"), s3, c3, lotsShort, shortExitMsg, stoxxoTagShort)
+    else if lSig3 == -1
+        ll3 := na(ll3) ? l3 : math.min(ll3, l3)
+        bool _tgtHit = (fixedTarget > 0 and l3 <= (ep3 - fixedTarget))
+        bool _tslHit = (useTSL and (ep3 - ll3) >= tslTrigger and h3 >= (ll3 + tslDist))
+        bool _smartGuardShort3 = (useTSL and (ep3 - ll3) >= tslTrigger and c3 > ema20_ATM and c3 > vwma_ATM)
+        
+        if _tgtHit
+            if s3_show
+                label.new(bar_index, l3, "TGT HIT", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+            _pnl = (ep3 - (ep3 - fixedTarget)), banked3 := banked3 + _pnl, lSig3 := 0, xt3 := time, slSafe3 := false
+            trigAlert(buildSym(s3, "STR"), s3, c3, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if _smartGuardShort3
+            if s3_show
+                label.new(bar_index, l3, "SMART EXIT", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+            _pnl = ep3 - nz(c3), banked3 := banked3 + _pnl, lSig3 := 0, xt3 := time, slSafe3 := false
+            trigAlert(buildSym(s3, "STR"), s3, c3, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if _tslHit
+            if s3_show
+                label.new(bar_index, h3, "TSL HIT", style=label.style_label_down, color=color.purple, textcolor=color.white, size=size.small)
+            _pnl = (ep3 - (ll3 + tslDist)), banked3 := banked3 + _pnl, lSig3 := 0, xt3 := time, slSafe3 := false
+            trigAlert(buildSym(s3, "STR"), s3, c3, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if disableSL_en and (ep3 - l3) >= disableSL_pts
+            slSafe3 := true
+        else if fixedSL > 0 and h3 >= (ep3 + fixedSL) and not slSafe3
+            if s3_show
+                label.new(bar_index, h3, "SL HIT", style=label.style_label_down, color=color.black, textcolor=color.white, size=size.small)
+            _pnl = (ep3 - (ep3 + fixedSL)), banked3 := banked3 + _pnl, lSig3 := 0, xt3 := time, slSafe3 := false
+            trigAlert(buildSym(s3, "STR"), s3, c3, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if b3
+            if s3_show
+                label.new(bar_index, l3, "exit", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+            _pnl = ep3 - nz(c3), banked3 := banked3 + _pnl, lSig3 := 0, xt3 := time, slSafe3 := false
+            trigAlert(buildSym(s3, "STR"), s3, c3, lotsShort, shortExitMsg, stoxxoTagShort)
+    else if s3_sig and lSig3 != -1 and allowShort3 and triggerShort3
+        if s3_show
+            label.new(bar_index, h3, "SELL", style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+        lSig3 := -1, ep3 := c3, et3 := time, trig3 := t3_str, isLong3 := false, slSafe3 := false, ll3 := na
+        cntShort3 := cntShort3 + 1
+        trigAlert(buildSym(s3, "STR"), s3, c3, lotsShort, shortEntryMsg, stoxxoTagShort)
+
+    // STRIKE 3 LONG
+    bool allowLong3 = (maxLongTrades == 0 or cntLong3 < maxLongTrades) and lSig3 == 0
+    if lSigLong3 == 2
+        hh3 := math.max(nz(hh3), h3)
+        bool _condHard = isHardExitLong
+        bool _condTGT  = (longTarget > 0 and h3 >= epLong3 + longTarget)
+        bool _condSL   = (longFixedSL > 0 and l3 <= epLong3 - longFixedSL)
+        bool _condTSL  = (useLongTSL and (hh3 - epLong3) >= tslLongTrigger and l3 <= hh3 - tslLongDist)
+        bool _condStr  = (c3 < ema20_ATM and c3 < vwma_ATM and c3 < vwap_ATM)
+        bool _condPanic= p3
+
+        if _condHard or _condTGT or _condSL or _condTSL or _condStr or _condPanic
+            _pnl = nz(c3) - epLong3
+            if _condTGT
+                _pnl := (epLong3 + longTarget) - epLong3
+                if s3_show
+                    label.new(bar_index, h3, "TGT HIT", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
+            else if _condSL
+                _pnl := (epLong3 - longFixedSL) - epLong3
+                if s3_show
+                    label.new(bar_index, l3, "SL HIT", style=label.style_label_up, color=color.black, textcolor=color.white, size=size.small)
+            else if _condTSL
+                _pnl := (hh3 - tslLongDist) - epLong3
+                if s3_show
+                    label.new(bar_index, l3, "TSL HIT", style=label.style_label_up, color=color.purple, textcolor=color.white, size=size.small)
+            else if _condStr
+                if s3_show
+                    label.new(bar_index, l3, "STRUCT BRK", style=label.style_label_up, color=color.orange, textcolor=color.white, size=size.small)
+            else if _condHard
+                if s3_show
+                    label.new(bar_index, l3, "TIME EXIT", style=label.style_label_up, color=color.orange, textcolor=color.white, size=size.small)
+            
+            banked3 := banked3 + _pnl, lSigLong3 := 0, xt3 := time
+            trigAlert(buildSym(s3, "STR"), s3, c3, lotsLong, longExitMsg, stoxxoTagLong)
+
+    else if lSigLong3 == 0 and allowLong3 and inSession and canLongStart
+        bool _sigVal = triggerLong3 or triggerTrap3
+        bool _strVal = c3 > ema20_ATM and c3 > vwma_ATM and c3 > vwap_ATM
+        bool _finalEntry = useStrictLong ? (_sigVal and _strVal) : _sigVal
+
+        if _finalEntry
+            if s3_show
+                label.new(bar_index, l3, "BUY-V", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+            lSigLong3 := 2, epLong3 := c3, et3 := time, trig3 := "BUY-V", hh3 := c3, isLong3 := true
+            cntLong3 := cntLong3 + 1
+            trigAlert(buildSym(s3, "STR"), s3, c3, lotsLong, longEntryMsg, stoxxoTagLong)
+
+    // STRIKE 4 SHORT
+    bool allowShort4 = (maxShortTrades == 0 or cntShort4 < maxShortTrades) and lSigLong4 == 0
+    if lSig4 == -1 and isHardExitShort
+        if s4_show
+            label.new(bar_index, h4, "TIME EXIT", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
+        _pnl = ep4 - nz(c4), banked4 := banked4 + _pnl, lSig4 := 0, xt4 := time, slSafe4 := false
+        trigAlert(buildSym(s4, "STR"), s4, c4, lotsShort, shortExitMsg, stoxxoTagShort)
+    else if lSig4 == -1
+        ll4 := na(ll4) ? l4 : math.min(ll4, l4)
+        bool _tgtHit = (fixedTarget > 0 and l4 <= (ep4 - fixedTarget))
+        bool _tslHit = (useTSL and (ep4 - ll4) >= tslTrigger and h4 >= (ll4 + tslDist))
+        bool _smartGuardShort4 = (useTSL and (ep4 - ll4) >= tslTrigger and c4 > ema20_s4 and c4 > vwma_s4)
+        
+        if _tgtHit
+            if s4_show
+                label.new(bar_index, l4, "TGT HIT", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+            _pnl = (ep4 - (ep4 - fixedTarget)), banked4 := banked4 + _pnl, lSig4 := 0, xt4 := time, slSafe4 := false
+            trigAlert(buildSym(s4, "STR"), s4, c4, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if _smartGuardShort4
+            if s4_show
+                label.new(bar_index, l4, "SMART EXIT", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+            _pnl = ep4 - nz(c4), banked4 := banked4 + _pnl, lSig4 := 0, xt4 := time, slSafe4 := false
+            trigAlert(buildSym(s4, "STR"), s4, c4, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if _tslHit
+            if s4_show
+                label.new(bar_index, h4, "TSL HIT", style=label.style_label_down, color=color.purple, textcolor=color.white, size=size.small)
+            _pnl = (ep4 - (ll4 + tslDist)), banked4 := banked4 + _pnl, lSig4 := 0, xt4 := time, slSafe4 := false
+            trigAlert(buildSym(s4, "STR"), s4, c4, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if disableSL_en and (ep4 - l4) >= disableSL_pts
+            slSafe4 := true
+        else if fixedSL > 0 and h4 >= (ep4 + fixedSL) and not slSafe4
+            if s4_show
+                label.new(bar_index, h4, "SL HIT", style=label.style_label_down, color=color.black, textcolor=color.white, size=size.small)
+            _pnl = (ep4 - (ep4 + fixedSL)), banked4 := banked4 + _pnl, lSig4 := 0, xt4 := time, slSafe4 := false
+            trigAlert(buildSym(s4, "STR"), s4, c4, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if b4
+            if s4_show
+                label.new(bar_index, l4, "exit", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+            _pnl = ep4 - nz(c4), banked4 := banked4 + _pnl, lSig4 := 0, xt4 := time, slSafe4 := false
+            trigAlert(buildSym(s4, "STR"), s4, c4, lotsShort, shortExitMsg, stoxxoTagShort)
+    else if s4_sig and lSig4 != -1 and allowShort4 and triggerShort4
+        if s4_show
+            label.new(bar_index, h4, "SELL", style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+        lSig4 := -1, ep4 := c4, et4 := time, trig4 := t4_str, isLong4 := false, slSafe4 := false, ll4 := na
+        cntShort4 := cntShort4 + 1
+        trigAlert(buildSym(s4, "STR"), s4, c4, lotsShort, shortEntryMsg, stoxxoTagShort)
+
+    // STRIKE 4 LONG
+    bool allowLong4 = (maxLongTrades == 0 or cntLong4 < maxLongTrades) and lSig4 == 0
+    if lSigLong4 == 2
+        hh4 := math.max(nz(hh4), h4)
+        bool _condHard = isHardExitLong
+        bool _condTGT  = (longTarget > 0 and h4 >= epLong4 + longTarget)
+        bool _condSL   = (longFixedSL > 0 and l4 <= epLong4 - longFixedSL)
+        bool _condTSL  = (useLongTSL and (hh4 - epLong4) >= tslLongTrigger and l4 <= hh4 - tslLongDist)
+        bool _condStr  = (c4 < ema20_s4 and c4 < vwma_s4 and c4 < vwap_s4)
+        bool _condPanic= p4
+
+        if _condHard or _condTGT or _condSL or _condTSL or _condStr or _condPanic
+            _pnl = nz(c4) - epLong4
+            if _condTGT
+                _pnl := (epLong4 + longTarget) - epLong4
+                if s4_show
+                    label.new(bar_index, h4, "TGT HIT", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
+            else if _condSL
+                _pnl := (epLong4 - longFixedSL) - epLong4
+                if s4_show
+                    label.new(bar_index, l4, "SL HIT", style=label.style_label_up, color=color.black, textcolor=color.white, size=size.small)
+            else if _condTSL
+                _pnl := (hh4 - tslLongDist) - epLong4
+                if s4_show
+                    label.new(bar_index, l4, "TSL HIT", style=label.style_label_up, color=color.purple, textcolor=color.white, size=size.small)
+            else if _condStr
+                if s4_show
+                    label.new(bar_index, l4, "STRUCT BRK", style=label.style_label_up, color=color.orange, textcolor=color.white, size=size.small)
+            else if _condHard
+                if s4_show
+                    label.new(bar_index, l4, "TIME EXIT", style=label.style_label_up, color=color.orange, textcolor=color.white, size=size.small)
+            
+            banked4 := banked4 + _pnl, lSigLong4 := 0, xt4 := time
+            trigAlert(buildSym(s4, "STR"), s4, c4, lotsLong, longExitMsg, stoxxoTagLong)
+
+    else if lSigLong4 == 0 and allowLong4 and inSession and canLongStart
+        bool _sigVal = triggerLong4 or triggerTrap4
+        bool _strVal = c4 > ema20_s4 and c4 > vwma_s4 and c4 > vwap_s4
+        bool _finalEntry = useStrictLong ? (_sigVal and _strVal) : _sigVal
+
+        if _finalEntry
+            if s4_show
+                label.new(bar_index, l4, "BUY-V", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+            lSigLong4 := 2, epLong4 := c4, et4 := time, trig4 := "BUY-V", hh4 := c4, isLong4 := true
+            cntLong4 := cntLong4 + 1
+            trigAlert(buildSym(s4, "STR"), s4, c4, lotsLong, longEntryMsg, stoxxoTagLong)
+
+    // STRIKE 5 SHORT
+    bool allowShort5 = (maxShortTrades == 0 or cntShort5 < maxShortTrades) and lSigLong5 == 0
+    if lSig5 == -1 and isHardExitShort
+        if s5_show
+            label.new(bar_index, h5, "TIME EXIT", style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
+        _pnl = ep5 - nz(c5), banked5 := banked5 + _pnl, lSig5 := 0, xt5 := time, slSafe5 := false
+        trigAlert(buildSym(s5, "STR"), s5, c5, lotsShort, shortExitMsg, stoxxoTagShort)
+    else if lSig5 == -1
+        ll5 := na(ll5) ? l5 : math.min(ll5, l5)
+        bool _tgtHit = (fixedTarget > 0 and l5 <= (ep5 - fixedTarget))
+        bool _tslHit = (useTSL and (ep5 - ll5) >= tslTrigger and h5 >= (ll5 + tslDist))
+        bool _smartGuardShort5 = (useTSL and (ep5 - ll5) >= tslTrigger and c5 > ema20_s5 and c5 > vwma_s5)
+        
+        if _tgtHit
+            if s5_show
+                label.new(bar_index, l5, "TGT HIT", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+            _pnl = (ep5 - (ep5 - fixedTarget)), banked5 := banked5 + _pnl, lSig5 := 0, xt5 := time, slSafe5 := false
+            trigAlert(buildSym(s5, "STR"), s5, c5, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if _smartGuardShort5
+            if s5_show
+                label.new(bar_index, l5, "SMART EXIT", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+            _pnl = ep5 - nz(c5), banked5 := banked5 + _pnl, lSig5 := 0, xt5 := time, slSafe5 := false
+            trigAlert(buildSym(s5, "STR"), s5, c5, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if _tslHit
+            if s5_show
+                label.new(bar_index, h5, "TSL HIT", style=label.style_label_down, color=color.purple, textcolor=color.white, size=size.small)
+            _pnl = (ep5 - (ll5 + tslDist)), banked5 := banked5 + _pnl, lSig5 := 0, xt5 := time, slSafe5 := false
+            trigAlert(buildSym(s5, "STR"), s5, c5, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if disableSL_en and (ep5 - l5) >= disableSL_pts
+            slSafe5 := true
+        else if fixedSL > 0 and h5 >= (ep5 + fixedSL) and not slSafe5
+            if s5_show
+                label.new(bar_index, h5, "SL HIT", style=label.style_label_down, color=color.black, textcolor=color.white, size=size.small)
+            _pnl = (ep5 - (ep5 + fixedSL)), banked5 := banked5 + _pnl, lSig5 := 0, xt5 := time, slSafe5 := false
+            trigAlert(buildSym(s5, "STR"), s5, c5, lotsShort, shortExitMsg, stoxxoTagShort)
+        else if b5
+            if s5_show
+                label.new(bar_index, l5, "exit", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+            _pnl = ep5 - nz(c5), banked5 := banked5 + _pnl, lSig5 := 0, xt5 := time, slSafe5 := false
+            trigAlert(buildSym(s5, "STR"), s5, c5, lotsShort, shortExitMsg, stoxxoTagShort)
+    else if s5_sig and lSig5 != -1 and allowShort5 and triggerShort5
+        if s5_show
+            label.new(bar_index, h5, "SELL", style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+        lSig5 := -1, ep5 := c5, et5 := time, trig5 := t5_str, isLong5 := false, slSafe5 := false, ll5 := na
+        cntShort5 := cntShort5 + 1
+        trigAlert(buildSym(s5, "STR"), s5, c5, lotsShort, shortEntryMsg, stoxxoTagShort)
+
+    // STRIKE 5 LONG
+    bool allowLong5 = (maxLongTrades == 0 or cntLong5 < maxLongTrades) and lSig5 == 0
+    if lSigLong5 == 2
+        hh5 := math.max(nz(hh5), h5)
+        bool _condHard = isHardExitLong
+        bool _condTGT = (longTarget > 0 and h5 >= epLong5 + longTarget)
+        bool _condSL = (longFixedSL > 0 and l5 <= epLong5 - longFixedSL)
+        bool _condTSL = (useLongTSL and (hh5 - epLong5) >= tslLongTrigger and l5 <= hh5 - tslLongDist)
+        bool _condStr = (c5 < ema20_s5 and c5 < vwma_s5 and c5 < vwap_s5)
+        bool _condPanic= p5
+
+        if _condHard or _condTGT or _condSL or _condTSL or _condStr or _condPanic
+            _pnl = nz(c5) - epLong5
+            if _condTGT
+                _pnl := (epLong5 + longTarget) - epLong5
+                if s5_show
+                    label.new(bar_index, h5, "TGT HIT", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
+            else if _condSL
+                _pnl := (epLong5 - longFixedSL) - epLong5
+                if s5_show
+                    label.new(bar_index, l5, "SL HIT", style=label.style_label_up, color=color.black, textcolor=color.white, size=size.small)
+            else if _condTSL
+                _pnl := (hh5 - tslLongDist) - epLong5
+                if s5_show
+                    label.new(bar_index, l5, "TSL HIT", style=label.style_label_up, color=color.purple, textcolor=color.white, size=size.small)
+            else if _condStr
+                if s5_show
+                    label.new(bar_index, l5, "STRUCT BRK", style=label.style_label_up, color=color.orange, textcolor=color.white, size=size.small)
+            else if _condHard
+                if s5_show
+                    label.new(bar_index, l5, "TIME EXIT", style=label.style_label_up, color=color.orange, textcolor=color.white, size=size.small)
+            
+            banked5 := banked5 + _pnl, lSigLong5 := 0, xt5 := time
+            trigAlert(buildSym(s5, "STR"), s5, c5, lotsLong, longExitMsg, stoxxoTagLong)
+
+    else if lSigLong5 == 0 and allowLong5 and inSession and canLongStart
+        bool _sigVal = triggerLong5 or triggerTrap5
+        bool _strVal = c5 > ema20_s5 and c5 > vwma_s5 and c5 > vwap_s5
+        bool _finalEntry = useStrictLong ? (_sigVal and _strVal) : _sigVal
+
+        if _finalEntry
+            if s5_show
+                label.new(bar_index, l5, "BUY-V", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+            lSigLong5 := 2, epLong5 := c5, et5 := time, trig5 := "BUY-V", hh5 := c5, isLong5 := true
+            cntLong5 := cntLong5 + 1
+            trigAlert(buildSym(s5, "STR"), s5, c5, lotsLong, longEntryMsg, stoxxoTagLong)
+
+var table t2 = table.new(getPos(pnlPos), 10, 25, frame_color=color.rgb(30, 30, 30), frame_width=1, border_width=1, border_color=color.rgb(60, 60, 60), bgcolor=(pnlPos=="Hide" ? color.new(color.black,100) : color.rgb(20,20,20)))
+
+if barstate.islast and pnlPos != "Hide"
+    hBg2 = color.rgb(60, 60, 70), hTx2 = color.white
+    table.cell(t2,0,0,"STRIKE",bgcolor=hBg2,text_color=hTx2, text_size=size.tiny), table.cell(t2,1,0,"ENTRY",bgcolor=hBg2,text_color=hTx2, text_size=size.tiny), table.cell(t2,2,0,"EXIT",bgcolor=hBg2,text_color=hTx2, text_size=size.tiny)
+    table.cell(t2,3,0,"LOTS",bgcolor=hBg2,text_color=hTx2, text_size=size.tiny), table.cell(t2,4,0,"PRICE",bgcolor=hBg2,text_color=hTx2, text_size=size.tiny)
+    table.cell(t2,5,0,"PTS",bgcolor=hBg2,text_color=hTx2, text_size=size.tiny), table.cell(t2,6,0,"P&L",bgcolor=hBg2,text_color=hTx2, text_size=size.tiny)
+    table.cell(t2,7,0,"TRIG",bgcolor=hBg2,text_color=hTx2, text_size=size.tiny)
+    // ADDING NEW COLUMNS
+    table.cell(t2,8,0,"S",bgcolor=hBg2,text_color=hTx2, text_size=size.tiny)
+    table.cell(t2,9,0,"B",bgcolor=hBg2,text_color=hTx2, text_size=size.tiny)
+    
+    _r = 1
+    float tableTotalPnL = 0.0
+    float floatingSum = 0.0
+
+    if not na(et1)
+        _runPnl = banked1
+        if lSig1 == -1
+            _runPnl := _runPnl + (ep1 - nz(c1))
+        else if lSigLong1 == 2
+            _runPnl := _runPnl + (nz(c1) - epLong1)
+        float _activePnL1 = (lSig1 == -1 or lSigLong1 == 2) ? ((lSig1 == -1 ? (ep1 - nz(c1))*lotsShort : (nz(c1) - epLong1)*lotsLong) * userLotSize) : 0.0
+        _currentLots = lSigLong1==2 or isLong1 ? lotsLong : lotsShort
+        _pts = _runPnl
+        _pnlVal = _pts * userLotSize * _currentLots
+        _cCol = _pts >= 0 ? color.green : color.red
+        _enP = isLong1 ? epLong1 : ep1
+        tableTotalPnL := tableTotalPnL + _pnlVal
+        if lSig1 == -1 or lSigLong1 == 2
+            floatingSum := floatingSum + _pnlVal
+        table.cell(t2,0,_r,"ITM2",text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,1,_r,str.format_time(et1, "HH:mm", "Asia/Kolkata"),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,2,_r,na(xt1)?"—":str.format_time(xt1, "HH:mm", "Asia/Kolkata"),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,3,_r,str.tostring(_currentLots),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,4,_r,str.tostring(_enP,"#.##"),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,5,_r,( _pts>0?"+":"")+str.tostring(_pts,"#.##"),text_color=_cCol, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,6,_r,(_pnlVal>0?"+₹":"₹")+str.tostring(_pnlVal,"#"),text_color=_cCol, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,7,_r,trig1,text_color=color.yellow, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,8,_r,str.tostring(cntShort1), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,9,_r,str.tostring(cntLong1), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        _r := _r + 1
+
+    if not na(et2)
+        _runPnl = banked2
+        if lSig2 == -1
+            _runPnl := _runPnl + (ep2 - nz(c2))
+        else if lSigLong2 == 2
+            _runPnl := _runPnl + (nz(c2) - epLong2)
+        float _activePnL2 = (lSig2 == -1 or lSigLong2 == 2) ? ((lSig2 == -1 ? (ep2 - nz(c2))*lotsShort : (nz(c2) - epLong2)*lotsLong) * userLotSize) : 0.0
+        _currentLots = lSigLong2==2 or isLong2 ? lotsLong : lotsShort
+        _pts = _runPnl, _pnlVal = _pts * userLotSize * _currentLots, _cCol = _pts >= 0 ? color.green : color.red
+        _enP = isLong2 ? epLong2 : ep2
+        tableTotalPnL := tableTotalPnL + _pnlVal
+        if lSig2 == -1 or lSigLong2 == 2
+            floatingSum := floatingSum + _pnlVal
+        table.cell(t2,0,_r,"ITM1",text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,1,_r,str.format_time(et2, "HH:mm", "Asia/Kolkata"),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,2,_r,na(xt2)?"—":str.format_time(xt2, "HH:mm", "Asia/Kolkata"),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,3,_r,str.tostring(_currentLots),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,4,_r,str.tostring(_enP,"#.##"),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,5,_r,( _pts>0?"+":"")+str.tostring(_pts,"#.##"),text_color=_cCol, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,6,_r,(_pnlVal>0?"+₹":"₹")+str.tostring(_pnlVal,"#"),text_color=_cCol, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,7,_r,trig2,text_color=color.yellow, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,8,_r,str.tostring(cntShort2), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,9,_r,str.tostring(cntLong2), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        _r := _r + 1
+
+    if not na(et3)
+        _runPnl = banked3
+        if lSig3 == -1
+            _runPnl := _runPnl + (ep3 - nz(c3))
+        else if lSigLong3 == 2
+            _runPnl := _runPnl + (nz(c3) - epLong3)
+        float _activePnL3 = (lSig3 == -1 or lSigLong3 == 2) ? ((lSig3 == -1 ? (ep3 - nz(c3))*lotsShort : (nz(c3) - epLong3)*lotsLong) * userLotSize) : 0.0
+        _currentLots = lSigLong3==2 or isLong3 ? lotsLong : lotsShort
+        _pts = _runPnl, _pnlVal = _pts * userLotSize * _currentLots, _cCol = _pts >= 0 ? color.green : color.red
+        _enP = isLong3 ? epLong3 : ep3
+        tableTotalPnL := tableTotalPnL + _pnlVal
+        if lSig3 == -1 or lSigLong3 == 2
+            floatingSum := floatingSum + _pnlVal
+        table.cell(t2,0,_r,"ATM",text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,1,_r,str.format_time(et3, "HH:mm", "Asia/Kolkata"),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,2,_r,na(xt3)?"—":str.format_time(xt3, "HH:mm", "Asia/Kolkata"),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,3,_r,str.tostring(_currentLots),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,4,_r,str.tostring(_enP,"#.##"),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,5,_r,( _pts>0?"+":"")+str.tostring(_pts,"#.##"),text_color=_cCol, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,6,_r,(_pnlVal>0?"+₹":"₹")+str.tostring(_pnlVal,"#"),text_color=_cCol, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,7,_r,trig3,text_color=color.yellow, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,8,_r,str.tostring(cntShort3), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,9,_r,str.tostring(cntLong3), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        _r := _r + 1
+
+    if not na(et4)
+        _runPnl = banked4
+        if lSig4 == -1
+            _runPnl := _runPnl + (ep4 - nz(c4))
+        else if lSigLong4 == 2
+            _runPnl := _runPnl + (nz(c4) - epLong4)
+        float _activePnL4 = (lSig4 == -1 or lSigLong4 == 2) ? ((lSig4 == -1 ? (ep4 - nz(c4))*lotsShort : (nz(c4) - epLong4)*lotsLong) * userLotSize) : 0.0
+        _currentLots = lSigLong4==2 or isLong4 ? lotsLong : lotsShort
+        _pts = _runPnl, _pnlVal = _pts * userLotSize * _currentLots, _cCol = _pts >= 0 ? color.green : color.red
+        _enP = isLong4 ? epLong4 : ep4
+        tableTotalPnL := tableTotalPnL + _pnlVal
+        if lSig4 == -1 or lSigLong4 == 2
+            floatingSum := floatingSum + _pnlVal
+        table.cell(t2,0,_r,"OTM1",text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,1,_r,str.format_time(et4, "HH:mm", "Asia/Kolkata"),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,2,_r,na(xt4)?"—":str.format_time(xt4, "HH:mm", "Asia/Kolkata"),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,3,_r,str.tostring(_currentLots),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,4,_r,str.tostring(_enP,"#.##"),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,5,_r,( _pts>0?"+":"")+str.tostring(_pts,"#.##"),text_color=_cCol, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,6,_r,(_pnlVal>0?"+₹":"₹")+str.tostring(_pnlVal,"#"),text_color=_cCol, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,7,_r,trig4,text_color=color.yellow, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,8,_r,str.tostring(cntShort4), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,9,_r,str.tostring(cntLong4), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        _r := _r + 1
+
+    if not na(et5)
+        _runPnl = banked5
+        if lSig5 == -1
+            _runPnl := _runPnl + (ep5 - nz(c5))
+        else if lSigLong5 == 2
+            _runPnl := _runPnl + (nz(c5) - epLong5)
+        float _activePnL5 = (lSig5 == -1 or lSigLong5 == 2) ? ((lSig5 == -1 ? (ep5 - nz(c5))*lotsShort : (nz(c5) - epLong5)*lotsLong) * userLotSize) : 0.0
+        _currentLots = lSigLong5==2 or isLong5 ? lotsLong : lotsShort
+        _pts = _runPnl, _pnlVal = _pts * userLotSize * _currentLots, _cCol = _pts >= 0 ? color.green : color.red
+        _enP = isLong5 ? epLong5 : ep5
+        tableTotalPnL := tableTotalPnL + _pnlVal
+        if lSig5 == -1 or lSigLong5 == 2
+            floatingSum := floatingSum + _pnlVal
+        table.cell(t2,0,_r,"OTM2",text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,1,_r,str.format_time(et5, "HH:mm", "Asia/Kolkata"),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,2,_r,na(xt5)?"—":str.format_time(xt5, "HH:mm", "Asia/Kolkata"),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,3,_r,str.tostring(_currentLots),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,4,_r,str.tostring(_enP,"#.##"),text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,5,_r,( _pts>0?"+":"")+str.tostring(_pts,"#.##"),text_color=_cCol, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,6,_r,(_pnlVal>0?"+₹":"₹")+str.tostring(_pnlVal,"#"),text_color=_cCol, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,7,_r,trig5,text_color=color.yellow, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,8,_r,str.tostring(cntShort5), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        table.cell(t2,9,_r,str.tostring(cntLong5), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.black,100))
+        _r := _r + 1
+
+    table.merge_cells(t2, 0, _r, 7, _r), table.cell(t2,0,_r,"--- ACCOUNT SUMMARY ---", bgcolor=color.black, text_color=color.white, text_size=size.tiny), _r+=1
+    
+    float histSum = 0.0
+    if array.size(historyPnL) > 0
+        for i = 0 to array.size(historyPnL) - 1
+            histSum := histSum + array.get(historyPnL, i)
+            
+    float currentEquity = initCapital + histSum + tableTotalPnL
+    capCol = currentEquity >= initCapital ? color.green : color.red
+    table.cell(t2,0,_r,"CAPITAL", bgcolor=color.rgb(30,30,40), text_color=color.gray, text_size=size.small)
+    table.merge_cells(t2, 1, _r, 3, _r), table.cell(t2,1,_r,"₹" + str.tostring(currentEquity, "#"), bgcolor=color.black, text_color=capCol, text_size=size.tiny)
+    
+    dayCol = tableTotalPnL >= 0 ? color.green : color.red
+    dayTxCol = tableTotalPnL == 0 ? color.white : dayCol
+    table.cell(t2,4,_r,"DAY P&L", bgcolor=color.rgb(30,30,40), text_color=color.gray, text_size=size.tiny)
+    table.merge_cells(t2, 5, _r, 7, _r), table.cell(t2,5,_r,"₹" + str.tostring(tableTotalPnL, "#"), bgcolor=color.black, text_color=dayTxCol, text_size=size.small)
+    
+    int totalShorts = cntShort1 + cntShort2 + cntShort3 + cntShort4 + cntShort5
+    int totalLongs = cntLong1 + cntLong2 + cntLong3 + cntLong4 + cntLong5
+    table.cell(t2, 8, _r, str.tostring(totalShorts), bgcolor=color.black, text_color=color.white, text_size=size.tiny)
+    table.cell(t2, 9, _r, str.tostring(totalLongs), bgcolor=color.black, text_color=color.white, text_size=size.tiny)
+    _r+=1
+    
+    floatCol = floatingSum >= 0 ? color.green : color.red
+    floatTxCol = floatingSum == 0 ? color.white : floatCol
+    table.cell(t2,0,_r,"FLOATING", bgcolor=color.rgb(30,30,40), text_color=color.gray, text_size=size.tiny)
+    table.merge_cells(t2, 1, _r, 3, _r), table.cell(t2,1,_r,"₹" + str.tostring(floatingSum, "#"), bgcolor=color.black, text_color=floatTxCol, text_size=size.small)
+    table.merge_cells(t2, 4, _r, 7, _r), _r+=1
+    
+    string histStr = "HIST: "
+    sz = array.size(historyPnL)
+    if sz > 0
+        for i = 0 to sz - 1
+            val = array.get(historyPnL, i)
+            histStr := histStr + "₹" + str.tostring(val, "#") + " | "
+    else
+        histStr := "HIST: No Data"
+        
+    table.merge_cells(t2, 0, _r, 7, _r)
+    table.cell(t2, 0, _r, histStr, bgcolor=color.black, text_color=color.gray, text_size=size.small)

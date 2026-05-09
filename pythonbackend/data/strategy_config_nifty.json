@@ -1,0 +1,129 @@
+{
+  "index": "NIFTY",
+  "broker": "FYERS",
+  "expiry_dd": 12,
+  "expiry_mm": 5,
+  "expiry_yy": 2026,
+  "start_dd": 30,
+  "start_mm": 12,
+  "start_yy": 2025,
+  "end_dd": 31,
+  "end_mm": 12,
+  "end_yy": 2099,
+  "strikes": [
+    {
+      "label": "S1",
+      "enabled": true,
+      "chart": false,
+      "show_index": true,
+      "price": 24000.0
+    },
+    {
+      "label": "S2",
+      "enabled": true,
+      "chart": false,
+      "show_index": true,
+      "price": 24100.0
+    },
+    {
+      "label": "S3",
+      "enabled": true,
+      "chart": true,
+      "show_index": true,
+      "price": 24200.0
+    },
+    {
+      "label": "S4",
+      "enabled": true,
+      "chart": false,
+      "show_index": true,
+      "price": 24300.0
+    },
+    {
+      "label": "S5",
+      "enabled": true,
+      "chart": false,
+      "show_index": true,
+      "price": 24400.0
+    }
+  ],
+  "strategyTag": "Yuvi-N-Short/Long",
+  "tradingMode": "live",
+  "initialCapital": 100000.0,
+  "logic": {
+    "calcMode": "Auto",
+    "filterChop": true,
+    "chopThreshold": 61.8,
+    "breakdownWindow": 0,
+    "useMomentum": true,
+    "useTrend": false,
+    "useVwapRev": false,
+    "minReversalSize": 5.0,
+    "restrictVwapScope": false,
+    "vwapScope": {
+      "s1": false,
+      "s2": false,
+      "s3": false,
+      "s4": false,
+      "s5": false
+    }
+  },
+  "short": {
+    "enabled": true,
+    "lots": 6,
+    "maxTrades": 0,
+    "startTime": "09:15",
+    "ignoreLogic": false,
+    "restrictScope": true,
+    "scope": {
+      "s1": false,
+      "s2": false,
+      "s3": true,
+      "s4": false,
+      "s5": false
+    },
+    "fixedSL": 0.0,
+    "fixedTarget": 0.0,
+    "smartSlDisable": true,
+    "smartSlPoints": 10.0,
+    "trailingSL": {
+      "enabled": false,
+      "activation": 20.0,
+      "distance": 10.0
+    },
+    "timeExit": {
+      "enabled": true,
+      "hour": 14,
+      "minute": 30
+    }
+  },
+  "long": {
+    "enabled": true,
+    "lots": 6,
+    "maxTrades": 1,
+    "startTime": "09:30",
+    "ignoreLogic": true,
+    "adxThreshold": 20.0,
+    "strictEntry": true,
+    "restrictScope": true,
+    "scope": {
+      "s1": false,
+      "s2": true,
+      "s3": false,
+      "s4": true,
+      "s5": false
+    },
+    "fixedSL": 0.0,
+    "fixedTarget": 0.0,
+    "trailingSL": {
+      "enabled": false,
+      "activation": 15.0,
+      "distance": 10.0
+    },
+    "timeExit": {
+      "enabled": true,
+      "hour": 15,
+      "minute": 10
+    }
+  }
+}

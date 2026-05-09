@@ -1,0 +1,51 @@
+
+
+# ── Dependencies ──────────────────────────────────────────────
+node_modules/
+
+# ── Environment / Secrets (NEVER commit) ──────────────────────
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# ── Node backend ──────────────────────────────────────────────
+# nodebackend/data/last-close-strikes.json
+nodebackend/data/straddle-history.json
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Next.js / trading-ui ──────────────────────────────────────
+trading-ui/.next/
+trading-ui/out/
+trading-ui/build/
+trading-ui/.vercel/
+trading-ui/*.tsbuildinfo
+trading-ui/next-env.d.ts
+
+# ── Python backend ────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+pythonbackend/.venv/
+pythonbackend/venv/
+pythonbackend/*.egg-info/
+pythonbackend/dist/
+pythonbackend/.pytest_cache/
+pythonbackend/data/access-token.json
+pythonbackend/data/security-master.json
+pythonbackend/data/security-master.zip
+pythonbackend/data/straddle-history.json
+pythonbackend/data/sm-extract/
+pythonbackend/data/security-master-temp/
+
+
+# ── OS / Editor ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+*.pem
+
