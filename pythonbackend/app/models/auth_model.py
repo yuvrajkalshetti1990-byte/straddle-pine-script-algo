@@ -1,5 +1,6 @@
 import base64
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,8 @@ from app.config import (
 
 
 TOKEN_FILE = DATA_DIR / "access-token.json"
+
+logger = logging.getLogger(__name__)
 
 access_token: str | None = None
 token_id: str | None = None
@@ -89,8 +92,17 @@ async def safe_fetch(
     json_body: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=False) as client:
-        response = await client.request(method, url, headers=headers, json=json_body)
-        return response.json()
+        try:
+            response = await client.request(method, url, headers=headers, json=json_body)
+            if not response.content:
+                return {"status": "error", "message": f"Empty response from {url}", "status_code": response.status_code}
+            return response.json()
+        except json.JSONDecodeError:
+            logger.error(f"JSON parse error from {url}: {response.text[:200]}")
+            return {"status": "error", "message": "Invalid JSON response from broker API", "detail": response.text[:100]}
+        except Exception as e:
+            logger.error(f"Request failed to {url}: {e}")
+            return {"status": "error", "message": str(e)}
 
 
 async def get_token_id() -> dict[str, Any]:

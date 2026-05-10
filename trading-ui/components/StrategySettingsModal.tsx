@@ -264,41 +264,41 @@ export default function StrategySettingsModal({
 
         // Logic
         if (config.logic) {
-          setCalcMode(config.logic.calc_mode || 'Auto');
-          setFilterChop(config.logic.filter_chop ?? true);
-          setChopValue(String(config.logic.chop_threshold || '61.8'));
-          setBreakdownWindow(String(config.logic.breakdown_window || '0'));
-          setUseMomentum(config.logic.use_momentum ?? true);
-          setUseTrend(config.logic.use_trend ?? false);
-          setUseVwapRev(config.logic.use_vwap_rev ?? false);
-          setMinRevSize(String(config.logic.min_reversal_size || '5'));
-          setRestrictVwapScope(config.logic.restrict_vwap_scope ?? false);
-          if (config.logic.vwap_scope) setVwapScope(config.logic.vwap_scope);
+          setCalcMode(config.logic.calcMode || 'Auto');
+          setFilterChop(config.logic.filterChop ?? true);
+          setChopValue(String(config.logic.chopThreshold || '61.8'));
+          setBreakdownWindow(String(config.logic.breakdownWindow || '0'));
+          setUseMomentum(config.logic.useMomentum ?? true);
+          setUseTrend(config.logic.useTrend ?? false);
+          setUseVwapRev(config.logic.useVwapRev ?? false);
+          setMinRevSize(String(config.logic.minReversalSize || '5'));
+          setRestrictVwapScope(config.logic.restrictVwapScope ?? false);
+          if (config.logic.vwapScope) setVwapScope(config.logic.vwapScope);
         }
 
         // Short
         if (config.short) {
           setEnableShort(config.short.enabled ?? true);
           setShortLots(String(config.short.lots || '2'));
-          setMaxShortTrades(String(config.short.max_trades || '0'));
-          setShortStartTime(config.short.start_time || '09:15');
-          setIgnoreLogicShort(config.short.ignore_logic ?? false);
-          setRestrictShortScope(config.short.restrict_scope ?? true);
+          setMaxShortTrades(String(config.short.maxTrades || '0'));
+          setShortStartTime(config.short.startTime || '09:15');
+          setIgnoreLogicShort(config.short.ignoreLogic ?? false);
+          setRestrictShortScope(config.short.restrictScope ?? true);
           if (config.short.scope) setShortScope(config.short.scope);
-          setShortFixedSl(String(config.short.fixed_sl || '0'));
-          setShortFixedTgt(String(config.short.fixed_target || '0'));
-          setSmartSlDisable(config.short.smart_sl_disable ?? true);
-          setSmartSlPoints(String(config.short.smart_sl_points || '10'));
-          if (config.short.trailing_sl) {
-            setShortTrailingSl(config.short.trailing_sl.enabled ?? false);
-            setShortTrailingAct(String(config.short.trailing_sl.activation || '20'));
-            setShortTrailingDist(String(config.short.trailing_sl.distance || '10'));
+          setShortFixedSl(String(config.short.fixedSL || '0'));
+          setShortFixedTgt(String(config.short.fixedTarget || '0'));
+          setSmartSlDisable(config.short.smartSlDisable ?? true);
+          setSmartSlPoints(String(config.short.smartSlPoints || '10'));
+          if (config.short.trailingSL) {
+            setShortTrailingSl(config.short.trailingSL.enabled ?? false);
+            setShortTrailingAct(String(config.short.trailingSL.activation || '20'));
+            setShortTrailingDist(String(config.short.trailingSL.distance || '10'));
           }
-          if (config.short.time_exit) {
-            setShortTimeExit(config.short.time_exit.enabled ?? true);
+          if (config.short.timeExit) {
+            setShortTimeExit(config.short.timeExit.enabled ?? true);
             setShortExitTime({ 
-              h: String(config.short.time_exit.hour).padStart(2, '0'), 
-              m: String(config.short.time_exit.minute).padStart(2, '0') 
+              h: String(config.short.timeExit.hour).padStart(2, '0'), 
+              m: String(config.short.timeExit.minute).padStart(2, '0') 
             });
           }
         }
@@ -307,24 +307,24 @@ export default function StrategySettingsModal({
         if (config.long) {
           setEnableLong(config.long.enabled ?? true);
           setLongLots(String(config.long.lots || '6'));
-          setMaxLongTrades(String(config.long.max_trades || '1'));
-          setLongStartTime(config.long.start_time || '09:30');
-          setIgnoreLogicLong(config.long.ignore_logic ?? true);
-          setLongAdx(String(config.long.adx_threshold || '20'));
-          setRestrictLongScope(config.long.restrict_scope ?? true);
+          setMaxLongTrades(String(config.long.maxTrades || '1'));
+          setLongStartTime(config.long.startTime || '09:30');
+          setIgnoreLogicLong(config.long.ignoreLogic ?? true);
+          setLongAdx(String(config.long.adxThreshold || '20'));
+          setRestrictLongScope(config.long.restrictScope ?? true);
           if (config.long.scope) setLongScope(config.long.scope);
-          setLongFixedSl(String(config.long.fixed_sl || '0'));
-          setLongFixedTgt(String(config.long.fixed_target || '0'));
-          if (config.long.trailing_sl) {
-            setLongTrailingSl(config.long.trailing_sl.enabled ?? false);
-            setLongTrailingAct(String(config.long.trailing_sl.activation || '15'));
-            setLongTrailingDist(String(config.long.trailing_sl.distance || '10'));
+          setLongFixedSl(String(config.long.fixedSL || '0'));
+          setLongFixedTgt(String(config.long.fixedTarget || '0'));
+          if (config.long.trailingSL) {
+            setLongTrailingSl(config.long.trailingSL.enabled ?? false);
+            setLongTrailingAct(String(config.long.trailingSL.activation || '15'));
+            setLongTrailingDist(String(config.long.trailingSL.distance || '10'));
           }
-          if (config.long.time_exit) {
-            setLongTimeExit(config.long.time_exit.enabled ?? true);
+          if (config.long.timeExit) {
+            setLongTimeExit(config.long.timeExit.enabled ?? true);
             setLongExitTime({ 
-              h: String(config.long.time_exit.hour).padStart(2, '0'), 
-              m: String(config.long.time_exit.minute).padStart(2, '0') 
+              h: String(config.long.timeExit.hour).padStart(2, '0'), 
+              m: String(config.long.timeExit.minute).padStart(2, '0') 
             });
           }
         }

@@ -9,7 +9,9 @@ import {
   BarChart3, 
   Clock, 
   RefreshCcw, 
-  Layers 
+  Layers,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 
 interface ValidationData {
@@ -41,16 +43,32 @@ interface ValidationData {
 const ValidationDashboard = ({ indexName = 'NIFTY' }) => {
   const [data, setData] = useState<ValidationData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchMetrics = async () => {
     try {
-      const res = await fetch(`/api/v1/strategy/validation-summary?index=${indexName}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+      const res = await fetch(`/api/v1/strategy/validation-summary?index=${indexName}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
       const result = await res.json();
       if (result.status === 'success') {
         setData(result.data);
+        setError(null);
+      } else {
+        setError(result.message || 'Failed to load telemetry');
       }
-    } catch (error) {
-      console.error('Failed to fetch validation metrics:', error);
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        setError('Request timed out');
+      } else {
+        console.error('Failed to fetch validation metrics:', err);
+        setError('Connection failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -62,8 +80,28 @@ const ValidationDashboard = ({ indexName = 'NIFTY' }) => {
     return () => clearInterval(interval);
   }, [indexName]);
 
-  if (loading || !data) {
-    return <div className="flex items-center justify-center h-64 text-gray-400">Loading Validation Telemetry...</div>;
+  if (loading && !data) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-gray-400 space-y-4">
+        <Loader2 className="animate-spin text-blue-500" size={32} />
+        <span className="text-sm font-medium animate-pulse">Loading Validation Telemetry...</span>
+      </div>
+    );
+  }
+
+  if (error && !data) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-gray-400 border border-gray-800 border-dashed rounded-2xl bg-gray-900/20">
+        <AlertCircle className="text-red-500/50 mb-2" size={32} />
+        <span className="text-sm font-medium">{error}</span>
+        <button 
+          onClick={() => { setLoading(true); fetchMetrics(); }}
+          className="mt-4 text-xs text-blue-400 hover:text-blue-300 underline"
+        >
+          Try Again
+        </button>
+      </div>
+    );
   }
 
   const Badge = ({ active, label, icon: Icon }: { active: boolean, label: string, icon: any }) => (
@@ -79,10 +117,10 @@ const ValidationDashboard = ({ indexName = 'NIFTY' }) => {
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Status Badges */}
       <div className="flex flex-wrap gap-3">
-        <Badge active={data.badges.pine_match} label="Pine Match" icon={ShieldCheck} />
-        <Badge active={data.badges.restart_safe} label="Restart Safe" icon={RefreshCcw} />
-        <Badge active={data.badges.duplicate_free} label="Duplicate Free" icon={Layers} />
-        <Badge active={data.badges.data_healthy} label="Data Healthy" icon={Activity} />
+        <Badge active={!!data?.badges?.pine_match} label="Pine Match" icon={ShieldCheck} />
+        <Badge active={!!data?.badges?.restart_safe} label="Restart Safe" icon={RefreshCcw} />
+        <Badge active={!!data?.badges?.duplicate_free} label="Duplicate Free" icon={Layers} />
+        <Badge active={!!data?.badges?.data_healthy} label="Data Healthy" icon={Activity} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -99,21 +137,21 @@ const ValidationDashboard = ({ indexName = 'NIFTY' }) => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="p-4 bg-gray-800/50 rounded-xl border border-gray-700">
               <div className="text-gray-400 text-xs mb-1 uppercase tracking-wider">Net P&L</div>
-              <div className={`text-xl font-bold ${data.summary.net_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                ₹{data.summary.net_pnl.toLocaleString('en-IN')}
+              <div className={`text-xl font-bold ${(data?.summary?.net_pnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                ₹{(data?.summary?.net_pnl || 0).toLocaleString('en-IN')}
               </div>
             </div>
             <div className="p-4 bg-gray-800/50 rounded-xl border border-gray-700">
               <div className="text-gray-400 text-xs mb-1 uppercase tracking-wider">Win Rate</div>
-              <div className="text-xl font-bold text-white">{data.summary.win_rate}%</div>
+              <div className="text-xl font-bold text-white">{data?.summary?.win_rate || 0}%</div>
             </div>
             <div className="p-4 bg-gray-800/50 rounded-xl border border-gray-700">
               <div className="text-gray-400 text-xs mb-1 uppercase tracking-wider">Profit Factor</div>
-              <div className="text-xl font-bold text-blue-400">{data.summary.profit_factor}</div>
+              <div className="text-xl font-bold text-blue-400">{data?.summary?.profit_factor || 0}</div>
             </div>
             <div className="p-4 bg-gray-800/50 rounded-xl border border-gray-700">
               <div className="text-gray-400 text-xs mb-1 uppercase tracking-wider">Total Trades</div>
-              <div className="text-xl font-bold text-purple-400">{data.summary.total_trades}</div>
+              <div className="text-xl font-bold text-purple-400">{data?.summary?.total_trades || 0}</div>
             </div>
           </div>
         </div>
@@ -131,8 +169,8 @@ const ValidationDashboard = ({ indexName = 'NIFTY' }) => {
                 <Layers className="text-gray-500" size={18} />
                 <span className="text-sm text-gray-300">Duplicate Entries</span>
               </div>
-              <span className={`font-mono font-bold ${data.integrity.duplicates > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                {data.integrity.duplicates}
+              <span className={`font-mono font-bold ${(data?.integrity?.duplicates || 0) > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                {data?.integrity?.duplicates || 0}
               </span>
             </div>
             <div className="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg">
@@ -140,15 +178,15 @@ const ValidationDashboard = ({ indexName = 'NIFTY' }) => {
                 <RefreshCcw className="text-gray-500" size={18} />
                 <span className="text-sm text-gray-300">Restart Recovery</span>
               </div>
-              <span className="font-mono font-bold text-blue-400">{data.integrity.restarts}</span>
+              <span className="font-mono font-bold text-blue-400">{data?.integrity?.restarts || 0}</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg">
               <div className="flex items-center gap-3">
                 <AlertTriangle className="text-gray-500" size={18} />
                 <span className="text-sm text-gray-300">Drift Alerts</span>
               </div>
-              <span className={`font-mono font-bold ${data.integrity.drift_alerts > 0 ? 'text-orange-400' : 'text-green-400'}`}>
-                {data.integrity.drift_alerts}
+              <span className={`font-mono font-bold ${(data?.integrity?.drift_alerts || 0) > 0 ? 'text-orange-400' : 'text-green-400'}`}>
+                {data?.integrity?.drift_alerts || 0}
               </span>
             </div>
           </div>
@@ -163,14 +201,14 @@ const ValidationDashboard = ({ indexName = 'NIFTY' }) => {
             Market Regime Performance
           </h3>
           <div className="grid grid-cols-2 gap-4">
-            {Object.entries(data.regime.by_type).map(([regime, stats]) => (
+            {Object.entries(data?.regime?.by_type || {}).map(([regime, stats]) => (
               <div key={regime} className="p-4 bg-gray-800/50 rounded-xl border border-gray-700">
                 <div className="text-gray-400 text-xs mb-2 uppercase tracking-wider">{regime}</div>
-                <div className={`text-lg font-bold ${stats.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  ₹{stats.pnl.toLocaleString('en-IN')}
+                <div className={`text-lg font-bold ${(stats?.pnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  ₹{(stats?.pnl || 0).toLocaleString('en-IN')}
                 </div>
                 <div className="text-[10px] text-gray-500 mt-1 uppercase">
-                  {stats.trades} Trades | {stats.win_rate}% Win
+                  {stats?.trades || 0} Trades | {stats?.win_rate || 0}% Win
                 </div>
               </div>
             ))}
@@ -184,14 +222,14 @@ const ValidationDashboard = ({ indexName = 'NIFTY' }) => {
             Session Analysis
           </h3>
           <div className="space-y-4">
-            {Object.entries(data.regime.by_session).map(([session, stats]) => (
+            {Object.entries(data?.regime?.by_session || {}).map(([session, stats]) => (
               <div key={session} className="flex items-center justify-between p-4 bg-gray-800/50 rounded-xl border border-gray-700">
                 <span className="text-sm font-medium text-gray-300">{session} Session</span>
                 <div className="text-right">
-                  <div className={`text-base font-bold ${stats.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    ₹{stats.pnl.toLocaleString('en-IN')}
+                  <div className={`text-base font-bold ${(stats?.pnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    ₹{(stats?.pnl || 0).toLocaleString('en-IN')}
                   </div>
-                  <div className="text-[10px] text-gray-500 uppercase">{stats.trades} Trades</div>
+                  <div className="text-[10px] text-gray-500 uppercase">{stats?.trades || 0} Trades</div>
                 </div>
               </div>
             ))}

@@ -5,10 +5,11 @@ import React, { useState } from 'react';
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (userData: any) => void;
+  onLogin?: (userData: any) => void;
+  onSuccess?: () => void;
 }
 
-const LoginModal = ({ isOpen, onClose, onLogin }: LoginModalProps) => {
+const LoginModal = ({ isOpen, onClose, onLogin, onSuccess }: LoginModalProps) => {
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
   const [formData, setFormData] = useState({
     email: '',
@@ -43,7 +44,8 @@ const LoginModal = ({ isOpen, onClose, onLogin }: LoginModalProps) => {
         avatar: null
       };
       
-      onLogin(userData);
+      if (onLogin) onLogin(userData);
+      if (onSuccess) onSuccess();
       setIsLoading(false);
       onClose();
     }, 1500);

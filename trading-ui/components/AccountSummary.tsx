@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react';
+import { Shield } from 'lucide-react';
 
 interface Account {
   id: string;
@@ -25,10 +26,10 @@ const AccountSummary = ({ className = "" }: { className?: string }) => {
       id: '1',
       name: 'Fy',
       broker: 'Fyers',
-      capital: '2334515',
+      capital: '0',
       dayPnl: '0',
       totalPnl: '0',
-      margin: '2334515',
+      margin: '0',
       isActive: true
     },
     {
@@ -162,10 +163,10 @@ const AccountSummary = ({ className = "" }: { className?: string }) => {
         const acc = engine.account || {};
         const daily = engine.daily || {};
         setStats({
-          capital: String(acc.initialCapital || 2334515),
+          capital: String(acc.initialCapital || '0'),
           dayPnl: String(((daily.realizedPnl || 0) + (daily.floatingPnl || 0)).toFixed(0)),
           totalPnl: String((acc.totalPnl || 0).toFixed(0)),
-          margin: String(acc.currentCapital || acc.initialCapital || 2334515),
+          margin: String(acc.currentCapital || acc.initialCapital || '0'),
           hist: acc.historicalPnl || []
         });
         setEngineRunning(engine.engineRunning || false);
@@ -310,19 +311,12 @@ const AccountSummary = ({ className = "" }: { className?: string }) => {
           
           <div className="flex gap-2">
             <button
-              onClick={toggleStrategy}
-              disabled={isProcessing}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${
-                engineRunning 
-                  ? 'bg-red-600/20 text-red-400 border border-red-600/30 hover:bg-red-600/30' 
-                  : 'bg-green-600/20 text-green-400 border border-green-600/30 hover:bg-green-600/30'
-              }`}
+              disabled={true}
+              className="px-3 py-1.5 rounded-md text-xs font-bold bg-gray-700/50 text-gray-500 border border-gray-600/30 cursor-not-allowed flex items-center gap-2"
+              title="Real broker order execution is not yet implemented in the current shadow-validation phase."
             >
-              {isProcessing ? (
-                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current"></div>
-              ) : (
-                engineRunning ? '⏹ Stop Strategy' : '▶ Start Strategy'
-              )}
+              <Shield size={12} />
+              Live Execution Pending
             </button>
             <button 
               onClick={() => setShowAddAccount(true)}

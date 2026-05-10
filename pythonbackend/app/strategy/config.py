@@ -246,6 +246,12 @@ class StrategyConfig:
     # Simulation settings
     slippage: SlippageConfig = field(default_factory=SlippageConfig)
 
+    @property
+    def index_config(self) -> Any:
+        """Return the IndexConfig for the current index."""
+        from app.strategy.constants import get_index_config
+        return get_index_config(self.index)
+
     def get_enabled_strikes(self) -> list[StrikeConfig]:
         """Return only strikes that are enabled."""
         return [s for s in self.strikes if s.enabled]
@@ -364,6 +370,10 @@ class StrategyConfig:
 
         if "index" in data:
             config.index = IndexType(data["index"])
+        elif "index_config" in data and isinstance(data["index_config"], dict):
+            # Legacy fallback: extract index from index_config if present
+            config.index = IndexType(data["index_config"].get("index", "NIFTY"))
+            
         if "broker" in data:
             config.broker = BrokerType(data["broker"])
             

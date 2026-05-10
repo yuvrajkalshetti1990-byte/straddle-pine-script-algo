@@ -375,6 +375,8 @@ class StrategyState:
 
     # Engine control
     engine_running: bool = False
+    is_warming_up: bool = False
+    timeframe_minutes: int = 3
     
     # ATM Tracking
     current_atm_strike: float = 0.0

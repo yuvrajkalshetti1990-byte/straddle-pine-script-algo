@@ -128,6 +128,7 @@ class StrategyRunner:
             self._bars_since_cross[label] = None
         
         self.state.bar_index = 0
+        self.state.account.initial_capital = self.config.initial_capital
         self.state.account.current_capital = self.config.initial_capital
         logger.info(f"Runner state reset for {self.config.index.value}")
 
@@ -139,6 +140,7 @@ class StrategyRunner:
 
         # Always reset before starting to ensure determinism, especially in paper/replay
         self.reset_state()
+        self.state.timeframe_minutes = self.config.timeframe_minutes
 
         await init_db()
 
@@ -153,44 +155,65 @@ class StrategyRunner:
 
             # 2. MANDATORY BROKER RECONCILIATION
             if self.config.trading_mode == "live":
-                from app.models.fyers_model import fetch_positions
+                from app.models.fyers_model import fetch_positions, get_fyers_instance
                 from app.strategy.data_engine import build_fyers_symbol
                 
                 logger.info("Starting broker reconciliation...")
+                
+                # Check for instance first
+                fyers = get_fyers_instance()
+                if not fyers:
+                    raise RuntimeError("Broker authentication missing. Please login to Fyers.")
+
                 live_positions = await asyncio.to_thread(fetch_positions)
-                if live_positions is not None:
-                    pos_map = {p['symbol']: p for p in live_positions if p['netQty'] != 0}
+                
+                # If None is returned, it usually means an API error (likely auth/expired)
+                if live_positions is None:
+                    # Double check profile to confirm auth failure
+                    profile = await asyncio.to_thread(fyers.get_profile)
+                    if profile.get("s") != "ok":
+                        msg = f"Broker authentication failed: {profile.get('message', 'Unknown error')}"
+                        logger.error(msg)
+                        raise RuntimeError(msg)
                     
-                    for label, strike in self.strikes.items():
-                        ce_sym = build_fyers_symbol(self.config.index.value, strike.strike_price, "CE")
-                        pe_sym = build_fyers_symbol(self.config.index.value, strike.strike_price, "PE")
-                        
-                        ce_pos = pos_map.get(ce_sym)
-                        pe_pos = pos_map.get(pe_sym)
-                        
-                        # Reconcile Short (Sell CE + Sell PE)
-                        if strike.lSig == -1: # Engine thinks we are SHORT
-                            if not ce_pos or not pe_pos:
-                                logger.warning(f"RECONCILIATION [{label.value}]: Engine SHORT but Broker flat. Resetting to flat.")
-                                strike.lSig = 0
-                                strike.ep = None
-                        elif strike.lSig == 0: # Engine thinks we are FLAT
-                            if ce_pos and pe_pos and ce_pos['netQty'] < 0 and pe_pos['netQty'] < 0:
-                                logger.warning(f"RECONCILIATION [{label.value}]: Engine FLAT but Broker SHORT. Syncing state.")
-                                strike.lSig = -1
-                                # Try to get real average price from broker if possible
-                                ce_avg = abs(ce_pos['buyAvg'] or ce_pos['sellAvg'])
-                                pe_avg = abs(pe_pos['buyAvg'] or pe_pos['sellAvg'])
-                                strike.ep = ce_avg + pe_avg
-                        
-                        # Reconcile Long (Buy CE or Buy PE)
-                        if strike.lSigLong == 2: # Engine thinks we are LONG
-                             if not ce_pos and not pe_pos:
-                                 logger.warning(f"RECONCILIATION [{label.value}]: Engine LONG but Broker flat. Resetting to flat.")
-                                 strike.lSigLong = 0
-                                 strike.epLong = None
-                else:
-                    logger.error("Failed to fetch live positions for reconciliation. Safety skip.")
+                    logger.warning("Broker reconciliation skipped: Positions API returned error but profile is OK.")
+                    live_positions = [] # Proceed with empty if profile is OK but positions failed for other reasons
+                
+                pos_map = {p['symbol']: p for p in live_positions if p['netQty'] != 0}
+                
+                for label, strike in self.strikes.items():
+                    ce_sym = build_fyers_symbol(self.config.index.value, strike.strike_price, "CE")
+                    pe_sym = build_fyers_symbol(self.config.index.value, strike.strike_price, "PE")
+                    
+                    ce_pos = pos_map.get(ce_sym)
+                    pe_pos = pos_map.get(pe_sym)
+                    
+                    # Reconcile Short (Sell CE + Sell PE)
+                    if strike.lSig == -1: # Engine thinks we are SHORT
+                        if not ce_pos or not pe_pos:
+                            logger.warning(f"RECONCILIATION [{label.value}]: Engine SHORT but Broker flat. Resetting to flat.")
+                            strike.lSig = 0
+                            strike.ep = None
+                    elif strike.lSig == 0: # Engine thinks we are FLAT
+                        if ce_pos and pe_pos and ce_pos['netQty'] < 0 and pe_pos['netQty'] < 0:
+                            logger.warning(f"RECONCILIATION [{label.value}]: Engine FLAT but Broker SHORT. Syncing state.")
+                            strike.lSig = -1
+                            # Try to get real average price from broker if possible
+                            ce_avg = abs(ce_pos['buyAvg'] or ce_pos['sellAvg'])
+                            pe_avg = abs(pe_pos['buyAvg'] or pe_pos['sellAvg'])
+                            strike.ep = ce_avg + pe_avg
+                    
+                    # Reconcile Long (Buy CE or Buy PE)
+                    if strike.lSigLong == 2: # Engine thinks we are LONG
+                         if not ce_pos and not pe_pos:
+                             logger.warning(f"RECONCILIATION [{label.value}]: Engine LONG but Broker flat. Resetting to flat.")
+                             strike.lSigLong = 0
+                             strike.epLong = None
+            else:
+                logger.error("Failed to fetch live positions for reconciliation. Safety skip.")
+        except RuntimeError:
+            # Re-raise auth/critical errors so they reach the API route
+            raise
         except Exception as e:
             logger.error(f"Failed to reconcile with broker: {e}", exc_info=True)
 
@@ -206,13 +229,22 @@ class StrategyRunner:
         #                because _backfill_strikes uses TradeSource.BACKFILL for today's bars,
         #                which are then filtered out by the LIVE-only API route.
         self.state.is_warming_up = True
-        await self._backfill_strikes()
-        self.state.is_warming_up = False
-        # IMPORTANT: Re-sync after backfill — daily_reset() inside backfill wipes lSig.
-        await self._sync_strike_state_from_db()
+        
+        # Background the warmup and loop to avoid blocking the API response
+        self._task = asyncio.create_task(self._startup_routine())
+        logger.info(f"Strategy engine backgrounded for {self.config.index.value} in [{self.config.trading_mode}] mode")
 
-        self._task = asyncio.create_task(self._run_loop())
-        logger.info(f"Strategy engine started for {self.config.index.value} in [{self.config.trading_mode}] mode")
+    async def _startup_routine(self) -> None:
+        """Background routine for warmup and loop."""
+        try:
+            await self._backfill_strikes()
+            self.state.is_warming_up = False
+            # IMPORTANT: Re-sync after backfill — daily_reset() inside backfill wipes lSig.
+            await self._sync_strike_state_from_db()
+            await self._run_loop()
+        except Exception as e:
+            logger.error(f"Error in strategy background routine: {e}", exc_info=True)
+            self.state.engine_running = False
 
     async def stop(self, square_off: bool = True) -> None:
         """Stop the strategy engine."""
@@ -274,7 +306,7 @@ class StrategyRunner:
                     if age > self.config.risk.stale_data_halt_sec:
                         msg = f"RISK HALT: Data is stale ({age:.0f}s old). Last update: {self.state.current_time}"
                         logger.error(msg)
-                        await self.alert_engine.send_alert(msg, "CRITICAL")
+                        await self.alert_engine.emit_critical_halt(msg)
                         self.state.engine_running = False
                         break
 

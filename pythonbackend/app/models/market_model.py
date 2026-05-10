@@ -1,3 +1,5 @@
+import json
+import logging
 import time
 from typing import Any
 
@@ -5,6 +7,7 @@ import httpx
 
 from app.config import USER_AGENT
 
+logger = logging.getLogger(__name__)
 
 nse_cookies = ""
 cookie_timestamp = 0.0
@@ -74,8 +77,12 @@ async def fetch_nifty_chain() -> dict[str, Any] | None:
         "https://www.nseindia.com/api/option-chain-indices?symbol=NIFTY",
         "https://www.nseindia.com/option-chain",
     )
-    data = response.json()
-    return data.get("records")
+    try:
+        data = response.json()
+        return data.get("records")
+    except (json.JSONDecodeError, AttributeError, Exception) as e:
+        logger.error(f"Failed to parse Nifty chain JSON: {e}")
+        return None
 
 
 async def fetch_nifty_intraday() -> list[list[float]] | None:
@@ -83,7 +90,11 @@ async def fetch_nifty_intraday() -> list[list[float]] | None:
         "https://www.nseindia.com/api/chart-databyindex?index=NIFTY%2050",
         "https://www.nseindia.com/market-data/live-equity-market",
     )
-    data = response.json()
+    try:
+        data = response.json()
+    except (json.JSONDecodeError, AttributeError, Exception) as e:
+        logger.error(f"Failed to parse Nifty intraday JSON: {e}")
+        return None
     raw_series = data.get("grapthData") or data.get("grappiData") or data.get("graphData")
     if not isinstance(raw_series, list):
         return None

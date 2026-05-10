@@ -58,12 +58,23 @@ async def strategy_status(index: str = "NIFTY") -> dict[str, Any]:
 
     runner = get_runner(idx)
     if runner is None:
+        # Load config from disk to provide context even when stopped
+        from app.strategy.config import StrategyConfig
+        config = StrategyConfig.load_from_disk(idx)
         return {
             "status": "success",
             "data": {
                 "engineRunning": False,
                 "index": index,
                 "message": "Engine not started",
+                "config": config.to_dict(),
+                "account": {
+                    "initialCapital": config.initial_capital,
+                    "currentCapital": config.initial_capital,
+                    "realizedPnl": 0,
+                    "floatingPnl": 0,
+                    "totalPnl": 0
+                }
             },
         }
 
@@ -82,17 +93,29 @@ async def strategy_start(request: StartRequest) -> dict[str, Any]:
     if request.config:
         config = StrategyConfig.from_dict({**request.config, "index": request.index})
 
-    runner = await start_runner(config)
-    logger.info(f"Strategy engine started for {request.index}")
-
-    return {
-        "status": "success",
-        "data": {
-            "engineRunning": True,
-            "index": request.index,
-            "message": f"Engine started for {request.index}",
-        },
-    }
+    try:
+        runner = await start_runner(config)
+        logger.info(f"Strategy engine started for {request.index}")
+        return {
+            "status": "success",
+            "data": {
+                "engineRunning": True,
+                "index": request.index,
+                "message": f"Engine started for {request.index}",
+            },
+        }
+    except RuntimeError as e:
+        logger.error(f"Failed to start strategy: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+    except Exception as e:
+        logger.error(f"Unexpected error starting strategy: {e}")
+        return {
+            "status": "error",
+            "message": "Internal server error"
+        }
 
 
 @router.post("/stop")
@@ -328,7 +351,7 @@ async def update_timeframe(request: TimeframeRequest) -> dict[str, Any]:
 
     # Re-initialize safely
     config = runner.config
-    config.logic.timeframe_minutes = request.timeframe
+    config.timeframe_minutes = request.timeframe
     
     # Restart the runner to trigger warmup correctly
     await stop_runner(idx, square_off=False)

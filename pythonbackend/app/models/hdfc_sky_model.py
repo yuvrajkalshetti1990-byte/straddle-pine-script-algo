@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import csv
 import io
 import json
@@ -22,6 +23,8 @@ MASTER_CACHE = CACHE_DIR / "security-master.json"
 MASTER_TTL = 6 * 60 * 60 * 1000
 
 master_cache: dict[str, Any] | None = None
+
+logger = logging.getLogger(__name__)
 
 
 def handle_hdfc_auth_error(status: int, context: str) -> None:
@@ -206,7 +209,11 @@ async def fetch_ltp(tokens: list[dict[str, str]]) -> dict[str, dict[str, float]]
             print(f"fetch-ltp failed: status={response.status_code}, response={response.text[:500]}")
             raise RuntimeError(f"fetch-ltp {response.status_code}: {response.text}")
 
-        payload = response.json()
+        try:
+            payload = response.json()
+        except (json.JSONDecodeError, Exception) as e:
+            logger.error(f"Failed to parse HDFC LTP response: {e}")
+            raise RuntimeError(f"Invalid JSON from HDFC LTP: {response.text[:100]}")
         for item in payload.get("data") or []:
             result[str(item.get("token"))] = {
                 "ltp": item.get("ltp") or 0,
@@ -269,7 +276,11 @@ async def _fetch_candle_once(
         print(f"fetch-candle failed: status={response.status_code}, response={response.text[:500]}")
         raise RuntimeError(f"fetch-candle {response.status_code}: {response.text}")
 
-    payload = response.json()
+    try:
+        payload = response.json()
+    except (json.JSONDecodeError, Exception) as e:
+        logger.error(f"Failed to parse HDFC candle response: {e}")
+        raise RuntimeError(f"Invalid JSON from HDFC Candle: {response.text[:100]}")
     results = payload.get("data", {}).get("results") or []
     candles: list[dict[str, Any]] = []
     for row in results:

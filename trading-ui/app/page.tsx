@@ -8,13 +8,14 @@ import AccountSummary from "@/components/AccountSummary";
 import ValidationDashboard from '@/components/ValidationDashboard';
 import MobileTradingDashboard from "@/components/MobileTradingDashboard";
 import TradingChart from "@/components/TradingChart";
+import StartupOrchestrator from '@/components/StartupOrchestrator';
 
 export default function Home() {
   const [leftWidth, setLeftWidth] = useState(50);
   const [tableHeight, setTableHeight] = useState(500);
   const [isResizable, setIsResizable] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'validation'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'charts' | 'history' | 'validation'>('dashboard');
   const [engineRunning, setEngineRunning] = useState(false);
   const [showQTPPopup, setShowQTPPopup] = useState(false);
   const [qtpIndex, setQTPIndex] = useState('NIFTY');
@@ -405,6 +406,16 @@ export default function Home() {
                 📋 Dashboard
               </button>
               <button
+                onClick={() => setActiveTab('charts')}
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                  activeTab === 'charts'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-700'
+                }`}
+              >
+                📊 Charts
+              </button>
+              <button
                 onClick={() => setActiveTab('validation')}
                 className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
                   activeTab === 'validation'
@@ -416,6 +427,14 @@ export default function Home() {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* NEW Startup Orchestrator - One-Click Beginner Flow */}
+        <div className="mb-6">
+          <StartupOrchestrator 
+            selectedIndex={selectedIndex} 
+            onStatusChange={(running) => setEngineRunning(running)}
+          />
         </div>
 
         {/* Auto Action Buttons - Desktop (below header) */}
@@ -519,6 +538,11 @@ export default function Home() {
             </>
           ) : (
             <>
+              {activeTab === 'charts' && (
+                <div className="animate-in fade-in zoom-in-95 duration-500">
+                  <TradingChart />
+                </div>
+              )}
 
               {activeTab === 'validation' && (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">

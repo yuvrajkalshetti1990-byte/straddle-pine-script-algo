@@ -71,30 +71,31 @@ async def load_active_trades(index_name: str) -> list[TradeState]:
         ) as cursor:
             rows = await cursor.fetchall()
             for row in rows:
+                row_dict = dict(row)
                 t = TradeState(
-                    trade_id=row["trade_id"],
-                    index=IndexType(row["index_name"]),
-                    strike_label=StrikeLabel(row["strike_label"]),
-                    strike_price=row["strike_price"],
-                    option_type=OptionType(row["option_type"]),
-                    direction=TradeDirection(row["direction"]),
-                    signal_type=SignalType(row["signal_type"]) if row.get("signal_type") else SignalType.TREND,
-                    entry_price=row["entry_price"],
-                    entry_time=datetime.fromisoformat(row["entry_time"]) if row["entry_time"] else None,
-                    lots=row["lots"],
-                    highest_high=row["highest_high"] or row["entry_price"],
-                    lowest_low=row["lowest_low"] or row["entry_price"],
-                    current_price=row["current_price"] or row["entry_price"],
+                    trade_id=row_dict["trade_id"],
+                    index=IndexType(row_dict["index_name"]),
+                    strike_label=StrikeLabel(row_dict["strike_label"]),
+                    strike_price=row_dict["strike_price"],
+                    option_type=OptionType(row_dict["option_type"]),
+                    direction=TradeDirection(row_dict["direction"]),
+                    signal_type=SignalType(row_dict.get("signal_type")) if row_dict.get("signal_type") else SignalType.TREND,
+                    entry_price=row_dict["entry_price"],
+                    entry_time=datetime.fromisoformat(row_dict["entry_time"]) if row_dict["entry_time"] else None,
+                    lots=row_dict["lots"],
+                    highest_high=row_dict.get("highest_high") or row_dict["entry_price"],
+                    lowest_low=row_dict.get("lowest_low") or row_dict["entry_price"],
+                    current_price=row_dict.get("current_price") or row_dict["entry_price"],
                 )
-                t.sl_safe = bool(row["sl_safe"])
-                t.trailing_sl_active = bool(row["trailing_sl_active"])
-                t.trailing_sl_level = row["trailing_sl_level"] or 0.0
-                t.floating_pnl = row["floating_pnl"] or 0.0
-                setattr(t, "prev_regime", row["prev_regime"])
-                setattr(t, "execution_score", row["execution_score"])
+                t.sl_safe = bool(row_dict["sl_safe"])
+                t.trailing_sl_active = bool(row_dict["trailing_sl_active"])
+                t.trailing_sl_level = row_dict.get("trailing_sl_level") or 0.0
+                t.floating_pnl = row_dict.get("floating_pnl") or 0.0
+                setattr(t, "prev_regime", row_dict.get("prev_regime"))
+                setattr(t, "execution_score", row_dict.get("execution_score"))
                 from app.strategy.types import TradeSource
-                t.source = TradeSource(row["source"]) if row["source"] else TradeSource.LIVE
-                t.is_replay = bool(row["is_replay"])
+                t.source = TradeSource(row_dict["source"]) if row_dict.get("source") else TradeSource.LIVE
+                t.is_replay = bool(row_dict.get("is_replay"))
                 trades.append(t)
     return trades
 
