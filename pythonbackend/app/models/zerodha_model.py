@@ -56,18 +56,22 @@ def handle_callback(request_token):
         logger.error(f"Zerodha auth failed: {e}")
         return {"status": "error", "message": str(e)}
 
-def fetch_nifty_price():
+def fetch_market_price(symbol: str):
     kite = get_kite_instance()
     if not kite:
         return None
     
     try:
-        quote = kite.quote(["NSE:NIFTY 50"])
-        data = quote.get("NSE:NIFTY 50", {})
+        quote = kite.quote([symbol])
+        data = quote.get(symbol, {})
         return {
             "price": data.get("last_price"),
-            "change": data.get("ohlc", {}).get("close", 0) - data.get("last_price", 0), # Simplified
-            "changePercent": data.get("change")
+            "change": data.get("ohlc", {}).get("close", 0) - data.get("last_price", 0),
+            "changePercent": data.get("change"),
+            "symbol": symbol
         }
     except Exception:
         return None
+
+def fetch_nifty_price():
+    return fetch_market_price("NSE:NIFTY 50")

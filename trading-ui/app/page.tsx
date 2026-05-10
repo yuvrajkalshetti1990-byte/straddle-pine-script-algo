@@ -5,6 +5,7 @@ import MainLayout from "@/components/layout/MainLayout";
 import StrikePricesTable from "@/components/StrikePricesTable";
 import OngoingTradesTable from "@/components/OngoingTradesTable";
 import AccountSummary from "@/components/AccountSummary";
+import ValidationDashboard from '@/components/ValidationDashboard';
 import MobileTradingDashboard from "@/components/MobileTradingDashboard";
 import TradingChart from "@/components/TradingChart";
 
@@ -13,7 +14,7 @@ export default function Home() {
   const [tableHeight, setTableHeight] = useState(500);
   const [isResizable, setIsResizable] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [activeView, setActiveView] = useState<'tables' | 'chart'>('tables');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'validation'>('dashboard');
   const [engineRunning, setEngineRunning] = useState(false);
   const [showQTPPopup, setShowQTPPopup] = useState(false);
   const [qtpIndex, setQTPIndex] = useState('NIFTY');
@@ -70,10 +71,12 @@ export default function Home() {
   const [mtmTarget, setMtmTarget] = useState('');
   const [mtmSL, setMtmSL] = useState('');
 
-  // Live NIFTY price
+  // Live index prices
   const [niftyPrice, setNiftyPrice] = useState<number | null>(null);
   const [niftyChange, setNiftyChange] = useState<number | null>(null);
   const [niftyChangePercent, setNiftyChangePercent] = useState<number | null>(null);
+  const [bankNiftyPrice, setBankNiftyPrice] = useState<number | null>(null);
+  const [vixPrice, setVixPrice] = useState<number | null>(null);
   const [connected, setConnected] = useState<boolean>(() => typeof window !== 'undefined' && localStorage.getItem('hdfc_connected') === 'true');
   const [lastUpdated, setLastUpdated] = useState('');
 
@@ -124,24 +127,40 @@ export default function Home() {
     checkAuthStatus();
   }, []);
 
-  // Fetch live NIFTY price
+  // Fetch live market prices (NIFTY, BANKNIFTY, VIX)
   useEffect(() => {
-    const fetchNifty = async () => {
+    const fetchMarketData = async () => {
       try {
-        const res = await fetch('/api/market/nifty-price');
-        const result = await res.json();
-        if (result.status === 'success' && result.data?.price) {
-          setNiftyPrice(result.data.price);
-          setNiftyChange(result.data.change ?? null);
-          setNiftyChangePercent(result.data.changePercent ?? null);
-          setLastUpdated(new Date().toLocaleTimeString('en-IN', { hour12: false }));
+        // NIFTY
+        const niftyRes = await fetch('/api/market/nifty-price');
+        const niftyResult = await niftyRes.json();
+        if (niftyResult.status === 'success' && niftyResult.data?.price) {
+          setNiftyPrice(niftyResult.data.price);
+          setNiftyChange(niftyResult.data.change ?? null);
+          setNiftyChangePercent(niftyResult.data.changePercent ?? null);
         }
+
+        // BANKNIFTY
+        const bnRes = await fetch('/api/market/banknifty-price');
+        const bnResult = await bnRes.json();
+        if (bnResult.status === 'success' && bnResult.data?.price) {
+          setBankNiftyPrice(bnResult.data.price);
+        }
+
+        // VIX
+        const vixRes = await fetch('/api/market/vix-price');
+        const vixResult = await vixRes.json();
+        if (vixResult.status === 'success' && vixResult.data?.price) {
+          setVixPrice(vixResult.data.price);
+        }
+
+        setLastUpdated(new Date().toLocaleTimeString('en-IN', { hour12: false }));
       } catch (error) {
-        console.error('Error fetching NIFTY price:', error);
+        console.error('Error fetching market data:', error);
       }
     };
-    fetchNifty();
-    const interval = setInterval(fetchNifty, 5000);
+    fetchMarketData();
+    const interval = setInterval(fetchMarketData, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -369,31 +388,31 @@ export default function Home() {
                 </select>
               </div>
 
-              <span className="text-white">BANK NIFTY: <span className="text-gray-500">--</span></span>
-              <span className="text-white">VIX: <span className="text-gray-500">--</span></span>
+              <span className="text-white">BANK NIFTY: <span className={bankNiftyPrice ? "text-blue-400 font-bold" : "text-gray-500"}>{bankNiftyPrice?.toLocaleString('en-IN') || '--'}</span></span>
+              <span className="text-white">VIX: <span className={vixPrice ? "text-orange-400 font-bold" : "text-gray-500"}>{vixPrice?.toFixed(2) || '--'}</span></span>
             </div>
             
             {/* View Switcher */}
             <div className="hidden lg:flex gap-1 bg-gray-800 rounded-lg p-1">
               <button
-                onClick={() => setActiveView('tables')}
+                onClick={() => setActiveTab('dashboard')}
                 className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  activeView === 'tables'
+                  activeTab === 'dashboard'
                     ? 'bg-blue-600 text-white'
                     : 'text-gray-300 hover:text-white hover:bg-gray-700'
                 }`}
               >
-                📋 Tables
+                📋 Dashboard
               </button>
               <button
-                onClick={() => setActiveView('chart')}
+                onClick={() => setActiveTab('validation')}
                 className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  activeView === 'chart'
-                    ? 'bg-green-600 text-white'
+                  activeTab === 'validation'
+                    ? 'bg-blue-600 text-white'
                     : 'text-gray-300 hover:text-white hover:bg-gray-700'
                 }`}
               >
-                📈 Charts
+                ⚖️ Validation
               </button>
             </div>
           </div>
@@ -473,7 +492,7 @@ export default function Home() {
 
         {/* Desktop Layout */}
         <div className="hidden lg:block">
-          {activeView === 'tables' ? (
+          {activeTab === 'dashboard' ? (
             <>
               {/* Trading Tables Section */}
               <div>
@@ -499,37 +518,14 @@ export default function Home() {
               </div>
             </>
           ) : (
-            /* Chart View */
-            <div className="space-y-4">
-              <div style={{ height: `${tableHeight + 100}px` }}>
-                <TradingChart className="h-full" />
-              </div>
-              
-              {/* Chart-specific controls */}
-              <div className="bg-[#111827] border border-gray-700 rounded-lg p-4">
-                  <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-                    📊 Market Analysis
-                  </h3>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Trend:</span>
-                      <span className="text-green-400 font-semibold">BULLISH</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Support:</span>
-                      <span className="text-blue-400 font-semibold">25,750</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Resistance:</span>
-                      <span className="text-red-400 font-semibold">26,100</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Volatility:</span>
-                      <span className="text-orange-400 font-semibold">MEDIUM</span>
-                    </div>
-                  </div>
+            <>
+
+              {activeTab === 'validation' && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <ValidationDashboard indexName={selectedIndex} />
                 </div>
-            </div>
+              )}
+            </>
           )}
         </div>
 
@@ -551,12 +547,20 @@ export default function Home() {
                 onMouseDown={handleQtpMouseDown}
               >
                 <h3 className="text-white font-bold text-lg">🎯 Quick Trade Panel (QTP)</h3>
-                <button 
-                  onClick={() => setShowQTPPopup(false)}
-                  className="text-gray-400 hover:text-white text-2xl font-bold px-2 py-1 hover:bg-gray-600 rounded"
-                >
-                  ✕
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setActiveTab('validation')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'validation' ? 'bg-orange-600 text-white shadow-lg shadow-orange-900/20' : 'text-gray-400 hover:text-white'}`}
+                  >
+                    Validation
+                  </button>
+                  <button 
+                    onClick={() => setShowQTPPopup(false)}
+                    className="text-gray-400 hover:text-white text-2xl font-bold px-2 py-1 hover:bg-gray-600 rounded"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
               
               <div className="p-6">

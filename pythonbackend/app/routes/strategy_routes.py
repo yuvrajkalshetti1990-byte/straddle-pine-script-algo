@@ -427,3 +427,19 @@ def _trade_to_dict(trade: Any) -> dict[str, Any]:
         "trailingSLActive": trade.trailing_sl_active,
         "trailingSLLevel": round(trade.trailing_sl_level, 2),
     }
+@router.get("/validation-summary")
+async def get_validation_summary(index: str = "NIFTY") -> dict[str, Any]:
+    """Get operational validation metrics for the dashboard."""
+    from app.strategy.validation_engine import get_validation_metrics
+    try:
+        data = await get_validation_metrics(index)
+        return {
+            "status": "success",
+            "data": data
+        }
+    except Exception as e:
+        logger.exception(f"Error fetching validation metrics: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }

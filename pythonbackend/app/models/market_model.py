@@ -28,33 +28,19 @@ async def get_nse_cookies() -> str:
     return nse_cookies
 
 
+async def fetch_market_index_data(index_name: str) -> dict[str, Any] | None:
+    """Generic NSE scraper for any index (NIFTY 50, NIFTY BANK, INDIA VIX)"""
+    url = f"https://www.nseindia.com/api/equity-stockIndices?index={index_name.replace(' ', '%20')}"
+    try:
+        response = await nse_fetch(url, "https://www.nseindia.com/market-data/live-equity-market")
+        data = response.json()
+        rows = data.get("data")
+        return rows[0] if isinstance(rows, list) and rows else None
+    except Exception:
+        return None
+
 async def fetch_nifty_data() -> dict[str, Any] | None:
-    global nse_cookies
-
-    if not nse_cookies or (time.time() * 1000) - cookie_timestamp > COOKIE_TTL:
-        await get_nse_cookies()
-
-    async def fetch_index() -> httpx.Response:
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=False) as client:
-            return await client.get(
-                "https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050",
-                headers={
-                    "User-Agent": USER_AGENT,
-                    "Cookie": nse_cookies,
-                    "Accept": "application/json",
-                    "Referer": "https://www.nseindia.com/market-data/live-equity-market",
-                    "Accept-Language": "en-US,en;q=0.9",
-                },
-            )
-
-    response = await fetch_index()
-    if response.status_code in {401, 403}:
-        await get_nse_cookies()
-        response = await fetch_index()
-
-    data = response.json()
-    rows = data.get("data")
-    return rows[0] if isinstance(rows, list) and rows else None
+    return await fetch_market_index_data("NIFTY 50")
 
 
 async def nse_fetch(url: str, referer: str) -> httpx.Response:

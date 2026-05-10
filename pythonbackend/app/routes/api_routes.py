@@ -29,7 +29,7 @@ from app.models.indicator_model import (
     resample_candles,
     translate_strike_payload,
 )
-from app.models.market_model import fetch_nifty_chain, fetch_nifty_data, fetch_nifty_intraday
+from app.models.market_model import fetch_market_index_data, fetch_nifty_chain, fetch_nifty_data, fetch_nifty_intraday
 from app.models.price_calculator import (
     calculate_roc_adjustment,
     calculate_rsi_adjustment,
@@ -112,6 +112,62 @@ async def nifty_price():
     except Exception as err:
         print(f"Error fetching NIFTY price: {err}")
         return JSONResponse({"status": "error", "connected": is_connected(), "message": str(err)}, status_code=500)
+@router.get("/market/banknifty-price")
+async def banknifty_price():
+    try:
+        from app.models import fyers_model, zerodha_model
+        if fyers_model._access_token:
+            data = await asyncio.to_thread(fyers_model.fetch_market_price, "NSE:NIFTYBANK-INDEX")
+            if data: return {"status": "success", "data": data}
+        if zerodha_model._access_token:
+            data = await asyncio.to_thread(zerodha_model.fetch_market_price, "NSE:NIFTY BANK")
+            if data: return {"status": "success", "data": data}
+        
+        # Fallback to NSE Scraper
+        bn = await fetch_market_index_data("NIFTY BANK")
+        if bn:
+            return {
+                "status": "success",
+                "data": {
+                    "symbol": "BANKNIFTY",
+                    "price": bn.get("lastPrice"),
+                    "change": round(_to_float(bn.get("change")) or 0, 2),
+                    "changePercent": round(_to_float(bn.get("pChange")) or 0, 1),
+                    "source": "nse"
+                }
+            }
+        return {"status": "error", "message": "No BANKNIFTY data"}
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@router.get("/market/vix-price")
+async def vix_price():
+    try:
+        from app.models import fyers_model, zerodha_model
+        if fyers_model._access_token:
+            data = await asyncio.to_thread(fyers_model.fetch_market_price, "NSE:INDIAVIX-INDEX")
+            if data: return {"status": "success", "data": data}
+        if zerodha_model._access_token:
+            data = await asyncio.to_thread(zerodha_model.fetch_market_price, "NSE:INDIA VIX")
+            if data: return {"status": "success", "data": data}
+            
+        # Fallback to NSE Scraper
+        vix = await fetch_market_index_data("INDIA VIX")
+        if vix:
+            return {
+                "status": "success",
+                "data": {
+                    "symbol": "VIX",
+                    "price": vix.get("lastPrice"),
+                    "change": round(_to_float(vix.get("change")) or 0, 2),
+                    "changePercent": round(_to_float(vix.get("pChange")) or 0, 1),
+                    "source": "nse"
+                }
+            }
+        return {"status": "error", "message": "No VIX data"}
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
 @router.post("/market/strikes/translate")

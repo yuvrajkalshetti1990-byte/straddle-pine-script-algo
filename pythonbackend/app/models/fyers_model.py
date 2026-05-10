@@ -91,36 +91,34 @@ def handle_callback(auth_code):
         logger.error(f"Fyers auth failed: {response}")
         return {"status": "error", "message": response.get("message", "Unknown error")}
 
-def fetch_nifty_price():
+def fetch_market_price(symbol: str):
+    """Generic fetch for any market symbol (NIFTY, BANKNIFTY, VIX)"""
     fyers = get_fyers_instance()
     if not fyers:
         return None
     
-    # Try the most common symbol first
-    symbols = ["NSE:NIFTY50-INDEX", "NSE:NIFTY 50-INDEX"]
-    data = {"symbols": ",".join(symbols)}
+    data = {"symbols": symbol}
     
     try:
         response = fyers.quotes(data)
-        logger.debug(f"Fyers quotes response: {response}")
-        
         if response.get("s") == "ok":
             quotes = response.get("d", [])
             if quotes:
-                # Pick the first valid quote
                 quote_data = quotes[0]
                 quote = quote_data.get("v", {})
                 return {
                     "price": quote.get("lp"),
                     "change": quote.get("ch"),
-                    "changePercent": quote.get("chp")
+                    "changePercent": quote.get("chp"),
+                    "symbol": symbol
                 }
-        else:
-            logger.error(f"Fyers quotes failed: {response}")
     except Exception as e:
-        logger.error(f"Fyers fetch error: {e}")
+        logger.error(f"Fyers fetch error for {symbol}: {e}")
         
     return None
+
+def fetch_nifty_price():
+    return fetch_market_price("NSE:NIFTY50-INDEX")
 
 _oc_cache = {}
 _oc_cache_expiry = 30 # seconds
