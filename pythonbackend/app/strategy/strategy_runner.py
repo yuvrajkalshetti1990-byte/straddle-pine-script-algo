@@ -932,6 +932,13 @@ class StrategyRunner:
                             strike.prev_indicators = strike.indicators if strike.indicators.has_values() else None
                             strike.indicators = get_latest_snapshot(indicator_series)
                         
+                        # Calculate missing variables for audit log
+                        ce_gain = ce_c - (strike.ce_day_open or 0)
+                        pe_gain = pe_c - (strike.pe_day_open or 0)
+                        regime_str = self._calc_regime_str(str_close, strike.day_open or 0, ce_gain, pe_gain)
+                        mode_str = self._calc_mode_str(strike.indicators)
+                        t_type = self._calc_trade_type(str_close, strike.day_open or 0, ce_gain, pe_gain, mode_str, strike.indicators.chop or 0)
+
                         # Save detailed audit log with microstructure
                         from db.models import save_audit_log
                         await save_audit_log(
@@ -942,7 +949,7 @@ class StrategyRunner:
                             indicators=strike.indicators.to_dict(),
                             regime=regime_str,
                             trade_type=t_type,
-                            signal=signal.to_dict().get("signal", "NONE"),
+                            signal="NONE",
                             decision="PROCESS" if strike.is_ready else "WARMUP",
                             rejection_reason="NONE",
                             telemetry={
